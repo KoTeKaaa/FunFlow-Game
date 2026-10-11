@@ -39,6 +39,7 @@ public sealed class RunSession : MonoBehaviour
         return false;
     }
 
+    [ContextMenu("Test Run/Start")]
     public void StartRun()
     {
         if (!isActiveAndEnabled || !ValidateSources() || !_run.StartRun())
@@ -48,6 +49,7 @@ public sealed class RunSession : MonoBehaviour
         StateChanged?.Invoke(State);
     }
 
+    [ContextMenu("Test Run/Reach Exit")]
     public void ReachExit()
     {
         if (!isActiveAndEnabled || (State != RunState.Playing && State != RunState.Alarm)
