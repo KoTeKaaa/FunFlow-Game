@@ -14,6 +14,8 @@ namespace FunFlow.Presentation.Sandbox
     {
         [SerializeField] private Transform thief;
         [SerializeField] private GameConfig config;
+        [Tooltip("Только для клавиши 7 (удар): события удара пока нет в контрактах. Пусто — найдётся сам.")]
+        [SerializeField] private PresentationController presentation;
 
         [Header("Фальшивый уровень")]
         [SerializeField] private float startX = -8f;
@@ -44,6 +46,12 @@ namespace FunFlow.Presentation.Sandbox
 
         private int FullWeightValue => config != null ? config.ValueAtFullWeight : 1000;
         private float AlarmDuration => config != null ? config.AlarmDurationSeconds : 60f;
+
+        private void Start()
+        {
+            // Песочница: однократный поиск при старте допустим (в игре так не делаем).
+            if (presentation == null) presentation = FindFirstObjectByType<PresentationController>();
+        }
 
         private void Awake()
         {
@@ -119,6 +127,9 @@ namespace FunFlow.Presentation.Sandbox
                 if (kb.digit3Key.wasPressedThisFrame) RemoveFraction(0.35f);
                 if (kb.digit4Key.wasPressedThisFrame) TriggerAlarm();
                 if (kb.digit5Key.wasPressedThisFrame) ReachExit();
+                // 7 — удар о стену: в игре придёт от PlayerMotor.Collided, когда №1 добавит его в контракт
+                if (kb.digit7Key.wasPressedThisFrame && presentation != null && thief != null)
+                    presentation.NotifyImpact(thief.position + Vector3.right * 0.5f, UnityEngine.Random.Range(0.3f, 1f));
                 // 6 — быстро проверить поражение: остаётся 3 секунды тревоги
                 if (kb.digit6Key.wasPressedThisFrame && State == RunState.Alarm) RemainingTime = Mathf.Min(RemainingTime, 3f);
             }
