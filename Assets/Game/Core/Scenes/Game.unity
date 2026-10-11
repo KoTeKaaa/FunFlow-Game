@@ -159,6 +159,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1580558109}
+  - component: {fileID: 1580558111}
+  - component: {fileID: 1580558110}
   m_Layer: 0
   m_Name: GameRoot
   m_TagString: Untagged
@@ -182,6 +184,33 @@ Transform:
   - {fileID: 636313591}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1580558110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1580558108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d8d2f26866f40a06a440d91eb314e15, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Game.Core::RunSession
+  _playerSource: {fileID: 1580558111}
+  _lootSource: {fileID: 1580558111}
+--- !u!114 &1580558111
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1580558108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ca63c2cc5c5c7a8ab4a2e60a487ebbb, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Game.Core::CoreModuleProbe
+  _currentValue: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
