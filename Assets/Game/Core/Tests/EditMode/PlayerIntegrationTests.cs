@@ -420,7 +420,11 @@ public sealed class PlayerIntegrationTests
         Assert.That(Launch(Vector3.right), Is.True);
         yield return new WaitForFixedUpdate();
         yield return null;
-        Assert.That(Vector3.Distance(bag.position, _motor.transform.position + new Vector3(-0.8f, -0.1f, 0f)), Is.LessThan(0.01f));
+        // The bag hangs on a rope with its own inertia: it stays behind the thief, within the rope length.
+        var rope = bag.GetComponents<MonoBehaviour>().Single(component => component.GetType().Name == "BagRope");
+        float ropeLength = new SerializedObject(rope).FindProperty("length").floatValue;
+        Assert.That(bag.position.x, Is.LessThan(_motor.transform.position.x));
+        Assert.That(Vector3.Distance(bag.position, _motor.transform.position), Is.LessThanOrEqualTo(ropeLength + 0.01f));
         _session.ReachExit();
         SetValue(0);
         _session.ReachExit();

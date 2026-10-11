@@ -1516,6 +1516,10 @@ PrefabInstance:
       propertyPath: target
       value: 
       objectReference: {fileID: 1393955276}
+    - target: {fileID: 3856363536418959075, guid: 30591bbaaefa24a55868a94f5b3c0250, type: 3}
+      propertyPath: thief
+      value: 
+      objectReference: {fileID: 1393955277}
     - target: {fileID: 4903059778427289784, guid: 30591bbaaefa24a55868a94f5b3c0250, type: 3}
       propertyPath: m_Name
       value: LootSet
