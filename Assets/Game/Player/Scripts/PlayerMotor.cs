@@ -51,6 +51,9 @@ namespace FunFlow.Player
             return v * v / (2f * Deceleration);
         }
 
+        /// <summary>Запуск назад или строго вбок отменяется, а не поворачивается.</summary>
+        public bool IsForward(Vector3 direction) => direction.x > 0f;
+
         /// <summary>Направление на полу, ограниченное углом от +X.</summary>
         public Vector3 ClampDirection(Vector3 direction)
         {
@@ -61,7 +64,7 @@ namespace FunFlow.Player
 
         public bool TryLaunch(Vector3 direction, float power)
         {
-            if (!CanLaunch) return false;
+            if (!CanLaunch || !IsForward(direction)) return false;
 
             body.linearVelocity = ClampDirection(direction) * LaunchSpeed(power);
             SetMoving(true);
