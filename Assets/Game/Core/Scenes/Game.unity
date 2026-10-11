@@ -572,13 +572,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 319420309}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.5, y: -0, z: -0, w: 0.8660254}
-  m_LocalPosition: {x: 6, y: 14, z: -8}
+  m_LocalRotation: {x: 0.2286053, y: 0.37078318, z: -0.09469142, w: 0.8951497}
+  m_LocalPosition: {x: -5, y: 8.5, z: -11}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1580558109}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 28.65222, y: 45.000004, z: 0}
 --- !u!114 &319420311
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -592,7 +592,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Core::CorridorCamera
   _target: {fileID: 1393955276}
-  _offset: {x: 6, y: 14, z: -8}
+  _offset: {x: -6, y: 8.5, z: -11}
 --- !u!81 &319420312
 AudioListener:
   m_ObjectHideFlags: 0
@@ -634,8 +634,8 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 150
-  field of view: 60
-  orthographic: 1
+  field of view: 55
+  orthographic: 0
   orthographic size: 8
   m_Depth: 0
   m_CullingMask:
