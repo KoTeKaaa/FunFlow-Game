@@ -1,6 +1,6 @@
 {
     "name": "Game.Core.EditModeTests",
-    "references": ["Game.Core", "Unity.InputSystem"],
+    "references": ["Game.Core", "Unity.InputSystem", "Unity.ugui"],
     "optionalUnityReferences": [
         "TestAssemblies"
     ],
