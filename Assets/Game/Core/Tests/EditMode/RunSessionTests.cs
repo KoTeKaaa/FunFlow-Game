@@ -9,6 +9,7 @@ public sealed class RunSessionTests
     private GameObject _root;
     private RunSession _session;
     private CoreModuleProbe _probe;
+    private GameConfig _config;
     private const string LinkError = "RunSession: assign Player Source (IPlayerControl) and Loot Source (ILootInventory) in Inspector.";
 
     [UnitySetUp]
@@ -21,6 +22,8 @@ public sealed class RunSessionTests
         _session = _root.AddComponent<RunSession>();
         Assign("_playerSource", _probe);
         Assign("_lootSource", _probe);
+        _config = ScriptableObject.CreateInstance<GameConfig>();
+        Assign("_config", _config);
     }
 
     private void Assign(string field, Object source)
@@ -34,7 +37,155 @@ public sealed class RunSessionTests
     public IEnumerator TearDown()
     {
         Object.DestroyImmediate(_root);
+        Object.DestroyImmediate(_config);
         yield return new ExitPlayMode();
+    }
+
+    [Test]
+    public void Alarm_StartsOnceAndPublishesConsistentProperties()
+    {
+        _root.SetActive(true);
+        _session.TriggerAlarm();
+        _session.SendMessage("Update");
+        Assert.That(_session.RemainingTime, Is.Zero);
+        Assert.That(_session.HasAlarmTriggered, Is.False);
+        _session.StartRun();
+        _session.SendMessage("Update");
+        Assert.That(_session.RemainingTime, Is.Zero);
+        int changes = 0;
+        _session.StateChanged += state =>
+        {
+            if (state != RunState.Alarm) return;
+            Assert.That(_session.HasAlarmTriggered, Is.True);
+            Assert.That(_session.RemainingTime, Is.EqualTo(_config.AlarmDurationSeconds));
+            Assert.That(_probe.ControlEnabled, Is.True);
+        };
+        _session.RemainingTimeChanged += time =>
+        {
+            changes++;
+            Assert.That(time, Is.EqualTo(_session.RemainingTime));
+            Assert.That(_session.State, Is.EqualTo(RunState.Alarm));
+        };
+        _session.TriggerAlarm();
+        double deadline = Deadline;
+        Tick(deadline - 10d, false);
+        _session.TriggerAlarm();
+        Assert.That(Deadline, Is.EqualTo(deadline));
+        Assert.That(_session.RemainingTime, Is.EqualTo(10f));
+        Assert.That(changes, Is.EqualTo(2));
+    }
+
+    private double Deadline => (double)typeof(RunSession).GetField("_alarmDeadline",
+        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(_session);
+
+    private void Tick(double time, bool exit)
+    {
+        typeof(RunSession).GetMethod("RefreshAlarm",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Invoke(_session, new object[] { time, exit });
+    }
+
+    [TestCase(-0.001d, false)]
+    [TestCase(-0.001d, true)]
+    [TestCase(0d, false)]
+    [TestCase(0d, true)]
+    [TestCase(0.001d, false)]
+    [TestCase(0.001d, true)]
+    public void Alarm_ExitAndTimerUseSameDeadlineInEitherOrder(double offset, bool timerFirst)
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        _probe.SetTestValue(75);
+        _session.TriggerAlarm();
+        int finishes = 0;
+        _session.StateChanged += state =>
+        {
+            Assert.That(_session.Result.HasValue, Is.True);
+            Assert.That(_probe.ControlEnabled, Is.False);
+            if (state == RunState.Lost) Assert.That(_session.RemainingTime, Is.Zero);
+        };
+        _session.Finished += result => finishes++;
+        double now = Deadline + offset;
+        Tick(now, !timerFirst);
+        Tick(now, timerFirst);
+        Assert.That(_session.State, Is.EqualTo(offset <= 0d ? RunState.Won : RunState.Lost));
+        Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(75));
+        float remaining = _session.RemainingTime;
+        _probe.SetTestValue(100);
+        Tick(now + 20d, false);
+        _session.TriggerAlarm();
+        _session.ReachExit();
+        Assert.That(_session.HasAlarmTriggered, Is.True);
+        Assert.That(_session.RemainingTime, Is.EqualTo(remaining));
+        Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(75));
+        Assert.That(finishes, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Alarm_PublicExitChecksDeadlineBeforeUpdate()
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        _session.TriggerAlarm();
+        typeof(RunSession).GetField("_alarmDeadline",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .SetValue(_session, Time.timeAsDouble - 1d);
+        _session.ReachExit();
+        Assert.That(_session.State, Is.EqualTo(RunState.Lost));
+        Assert.That(_session.RemainingTime, Is.Zero);
+    }
+
+    [UnityTest]
+    public IEnumerator Alarm_UpdateCountsDownAndFreezesAfterVictory()
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        _session.TriggerAlarm();
+        yield return null;
+        yield return null;
+        Assert.That(_session.RemainingTime, Is.LessThan(_config.AlarmDurationSeconds).And.GreaterThan(0f));
+        _session.ReachExit();
+        float remaining = _session.RemainingTime;
+        yield return null;
+        Assert.That(_session.State, Is.EqualTo(RunState.Won));
+        Assert.That(_session.RemainingTime, Is.EqualTo(remaining));
+    }
+
+    [Test]
+    public void Alarm_UpdateExpiresOnceWithConsistentNotificationOrder()
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        _session.TriggerAlarm();
+        string events = "";
+        _session.StateChanged += state => events += "state ";
+        _session.RemainingTimeChanged += time =>
+        {
+            Assert.That(_session.State, Is.EqualTo(RunState.Lost));
+            Assert.That(_session.Result.Value.IsVictory, Is.False);
+            Assert.That(_probe.ControlEnabled, Is.False);
+            Assert.That(time, Is.Zero);
+            events += "time ";
+        };
+        _session.Finished += result => events += "finish";
+        typeof(RunSession).GetField("_alarmDeadline",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .SetValue(_session, Time.timeAsDouble - 1d);
+        _session.SendMessage("Update");
+        _session.SendMessage("Update");
+        Assert.That(events, Is.EqualTo("state time finish"));
+    }
+
+    [Test]
+    public void Alarm_MissingConfigReportsErrorWithoutChangingAttempt()
+    {
+        Assign("_config", null);
+        _root.SetActive(true);
+        _session.StartRun();
+        LogAssert.Expect(LogType.Error, "RunSession: assign GameConfig with a positive finite alarm duration.");
+        _session.TriggerAlarm();
+        Assert.That(_session.State, Is.EqualTo(RunState.Playing));
+        Assert.That(_session.HasAlarmTriggered, Is.False);
     }
 
     [Test]

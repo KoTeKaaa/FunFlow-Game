@@ -6,23 +6,63 @@ public sealed class RunSession : MonoBehaviour, IRunSession
 {
     [SerializeField] private MonoBehaviour _playerSource;
     [SerializeField] private MonoBehaviour _lootSource;
+    [SerializeField] private GameConfig _config;
     private readonly RunStateMachine _run = new RunStateMachine();
     private IPlayerControl _player;
     private ILootInventory _loot;
     private bool _restarting;
+    private double _alarmDeadline;
+    private float _remainingTime;
 
     public RunState State => _run.State;
     public bool HasAlarmTriggered => _run.HasAlarmTriggered;
-    // The short cycle has no alarm timer yet (task 14).
-    public float RemainingTime => 0f;
+    public float RemainingTime => _remainingTime;
     public RunResult? Result => _run.Result;
-    public event Action<float> RemainingTimeChanged { add { } remove { } }
+    public event Action<float> RemainingTimeChanged;
     public event Action<RunState> StateChanged;
     public event Action<RunResult> Finished;
 
+    [ContextMenu("Test Run/Alarm")]
     public void TriggerAlarm()
     {
-        throw new NotSupportedException("RunSession: alarm timer integration is pending (task 14).");
+        if (!isActiveAndEnabled || _restarting || State != RunState.Playing || !ValidateSources())
+            return;
+
+        if (_config == null || !float.IsFinite(_config.AlarmDurationSeconds) || _config.AlarmDurationSeconds <= 0f)
+        {
+            Debug.LogError("RunSession: assign GameConfig with a positive finite alarm duration.", this);
+            return;
+        }
+
+        _run.TriggerAlarm();
+        _remainingTime = _config.AlarmDurationSeconds;
+        _alarmDeadline = Time.timeAsDouble + _remainingTime;
+        StateChanged?.Invoke(State);
+        RemainingTimeChanged?.Invoke(RemainingTime);
+    }
+
+    private void Update()
+    {
+        if (!_restarting && State == RunState.Alarm && ValidateSources())
+            RefreshAlarm(Time.timeAsDouble, false);
+    }
+
+    private void RefreshAlarm(double now, bool reachingExit)
+    {
+        bool timeChanged = false;
+        if (State == RunState.Alarm)
+        {
+            float remaining = (float)Math.Max(0d, _alarmDeadline - now);
+            timeChanged = remaining != _remainingTime;
+            _remainingTime = remaining;
+        }
+
+        // Confirmed rule: an exit exactly at the deadline wins; only later time expires.
+        bool expired = State == RunState.Alarm && now > _alarmDeadline;
+        if (expired || reachingExit)
+            FinishAttempt(!expired, timeChanged);
+        else if (timeChanged)
+            RemainingTimeChanged?.Invoke(RemainingTime);
     }
 
     private void OnEnable()
@@ -40,6 +80,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
     private void OnDestroy()
     {
         StateChanged = null;
+        RemainingTimeChanged = null;
         Finished = null;
         _player = null;
         _loot = null;
@@ -105,12 +146,19 @@ public sealed class RunSession : MonoBehaviour, IRunSession
             || !ValidateSources())
             return;
 
-        var result = new RunResult(true, _loot.CurrentValue);
+        RefreshAlarm(Time.timeAsDouble, true);
+    }
+
+    private void FinishAttempt(bool victory, bool timeChanged)
+    {
+        var result = new RunResult(victory, _loot.CurrentValue);
         if (!_run.FinishRun(result))
             return;
 
         _player.SetControlEnabled(false);
         StateChanged?.Invoke(State);
+        if (timeChanged)
+            RemainingTimeChanged?.Invoke(RemainingTime);
         Finished?.Invoke(result);
     }
 }

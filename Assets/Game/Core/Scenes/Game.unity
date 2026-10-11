@@ -921,6 +921,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Game.Core::RunSession
   _playerSource: {fileID: 1393955275}
   _lootSource: {fileID: 1841995594}
+  _config: {fileID: 11400000, guid: c92a21b2324d2d3b993b271213acfba4, type: 2}
 --- !u!114 &1580558111
 MonoBehaviour:
   m_ObjectHideFlags: 0
