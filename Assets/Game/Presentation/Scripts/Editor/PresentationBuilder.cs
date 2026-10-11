@@ -280,6 +280,7 @@ namespace FunFlow.Presentation.EditorTools
             var binder = root.AddComponent<PresentationBinder>();
             Wire(binder, "presentation", controller);
 
+            HudArtDirection.Apply(root);
             return root;
         }
 

@@ -110,7 +110,7 @@ namespace FunFlow.Presentation
 
             source.clip = clip;
             source.pitch = pitch;
-            source.volume = Mathf.Clamp01(volume) * masterVolume;
+            source.volume = Mathf.Clamp01(volume) * masterVolume * AudioPreferences.EffectsVolume;
             source.Play();
         }
 

@@ -84,7 +84,7 @@ public sealed class PlayerIntegrationTests
         _session.SendMessage("Update");
         var text = Source(Module("HudView").Single(), "alarmValue");
         Assert.That((string)text.GetType().GetProperty("text").GetValue(text),
-            Is.EqualTo($"{Mathf.CeilToInt(_session.RemainingTime)} сек."));
+            Is.EqualTo("00:07"));
         typeof(RunSession).GetField("_alarmDeadline", System.Reflection.BindingFlags.Instance
             | System.Reflection.BindingFlags.NonPublic).SetValue(_session, Time.timeAsDouble - 1d);
         _session.SendMessage("Update");
@@ -150,7 +150,7 @@ public sealed class PlayerIntegrationTests
         Assert.That(Loot.CurrentValue, Is.EqualTo(320));
         Assert.That((bool)Field(Module("PresentationController").Single(), "alarmAnnounced"), Is.True);
         var alarmText = Source(Module("HudView").Single(), "alarmValue");
-        Assert.That((string)alarmText.GetType().GetProperty("text").GetValue(alarmText), Does.Contain("сек."));
+        Assert.That((string)alarmText.GetType().GetProperty("text").GetValue(alarmText), Does.Match(@"^\d{2,}:[0-5]\d$"));
     }
 
     [UnityTest]
@@ -311,6 +311,8 @@ public sealed class PlayerIntegrationTests
         Assert.That(Launch(Vector3.right), Is.False);
         _session.StartRun();
         float height = _body.position.y;
+        Vector3 cameraOffset = new SerializedObject(_camera).FindProperty("_offset").vector3Value;
+        Quaternion cameraRotation = _camera.transform.rotation;
         for (int attempt = 0; attempt < 3; attempt++)
         {
             Assert.That(Launch(Vector3.left), Is.False);
@@ -329,7 +331,10 @@ public sealed class PlayerIntegrationTests
             Assert.That(_player.IsMoving, Is.False, "Player did not stop within 3 seconds.");
             Assert.That(_body.linearVelocity.sqrMagnitude, Is.LessThan(0.001f));
             yield return null;
-            Assert.That(_camera.transform.position.x, Is.EqualTo(_body.position.x + 6f).Within(0.01f));
+            Assert.That(_camera.transform.position.x, Is.EqualTo(_body.position.x + cameraOffset.x).Within(0.01f));
+            Assert.That(_camera.transform.position.y, Is.EqualTo(cameraOffset.y).Within(0.01f));
+            Assert.That(_camera.transform.position.z, Is.EqualTo(cameraOffset.z).Within(0.01f));
+            Assert.That(Quaternion.Angle(_camera.transform.rotation, cameraRotation), Is.LessThan(0.01f));
         }
         Assert.That(launches, Is.EqualTo(3));
         _session.ReachExit();
@@ -500,7 +505,7 @@ public sealed class PlayerIntegrationTests
             _session.TriggerAlarm();
             _session.TriggerAlarm();
             Assert.That((bool)Field(Component("PresentationController"), "alarmAnnounced"), Is.True);
-            Assert.That(Text(Source(Component("HudView"), "alarmValue")), Does.Contain("сек."));
+            Assert.That(Text(Source(Component("HudView"), "alarmValue")), Does.Match(@"^\d{2,}:[0-5]\d$"));
             SetValue(750);
             yield return new WaitForSecondsRealtime(0.8f);
             Assert.That(Text(Source(Component("HudView"), "lootValue")), Does.Contain("750"));
@@ -567,32 +572,31 @@ public sealed class PlayerIntegrationTests
         Canvas.ForceUpdateCanvases();
         Vector2 ui = ((RectTransform)button.transform).TransformPoint(((RectTransform)button.transform).rect.center);
         var mouse = InputSystem.AddDevice<Mouse>();
-        void Pointer(Vector2 position, bool down)
+        IEnumerator Pointer(Vector2 position, bool down)
         {
             InputSystem.QueueStateEvent(mouse, new MouseState { position = position, buttons = (ushort)(down ? 1 : 0) });
             InputSystem.Update();
-            guard.SendMessage("Update");
-            if (input.enabled) input.SendMessage("Update");
+            yield return null; // Let the UI guard and input run in their actual frame order.
         }
         try
         {
-            Pointer(ui, true);
+            yield return Pointer(ui, true);
             Assert.That(input.enabled, Is.False);
             button.onClick.Invoke(); // Start while the mouse is still held on UI.
             Vector2 ball = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position);
             Vector2 pull = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position - Vector3.right * 3f);
-            Pointer(ball, true);
+            yield return Pointer(ball, true);
             Assert.That(input.enabled, Is.False);
-            Pointer(pull, false);
+            yield return Pointer(pull, false);
             Assert.That(_player.IsMoving, Is.False);
-            Pointer(ball, false);
+            yield return Pointer(ball, false);
             Assert.That(input.enabled, Is.True);
-            Pointer(ball, true);
+            yield return Pointer(ball, true);
             Assert.That((bool)input.GetType().GetProperty("IsAiming").GetValue(input), Is.True);
-            Pointer(pull, true);
+            yield return Pointer(pull, true);
             Assert.That(input.enabled, Is.True, "The gameplay drag must remain outside UI.");
             Assert.That((bool)input.GetType().GetProperty("HasLaunchableAim").GetValue(input), Is.True);
-            Pointer(pull, false);
+            yield return Pointer(pull, false);
             Assert.That(_player.IsMoving, Is.True, "Normal gameplay must still launch.");
         }
         finally { InputSystem.RemoveDevice(mouse); }
