@@ -405,6 +405,14 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7602932548764662046, guid: 83f209504ce45314b8c976138c564dab, type: 3}
+      propertyPath: runSessionSource
+      value: 
+      objectReference: {fileID: 1580558110}
+    - target: {fileID: 7602932548764662046, guid: 83f209504ce45314b8c976138c564dab, type: 3}
+      propertyPath: levelSequenceSource
+      value: 
+      objectReference: {fileID: 1580558113}
     - target: {fileID: 7717481946211442988, guid: 83f209504ce45314b8c976138c564dab, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -1206,6 +1214,7 @@ GameObject:
   - component: {fileID: 1580558110}
   - component: {fileID: 1580558111}
   - component: {fileID: 1580558112}
+  - component: {fileID: 1580558113}
   m_Layer: 0
   m_Name: GameRoot
   m_TagString: Untagged
@@ -1289,6 +1298,20 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &1580558113
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1580558108}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3fc8d8dce409004c81c55416ff50516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Core::LevelSequence
+  _session: {fileID: 1580558110}
+  _config: {fileID: 11400000, guid: f10897ff4b075d74f834d938718c821b, type: 2}
 --- !u!1 &1641553887 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4178345930240656711, guid: 77923bb1cac0bce4db48c8bf5e9474f3, type: 3}
