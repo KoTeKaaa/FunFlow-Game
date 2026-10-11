@@ -311,6 +311,8 @@ public sealed class PlayerIntegrationTests
         Assert.That(Launch(Vector3.right), Is.False);
         _session.StartRun();
         float height = _body.position.y;
+        Vector3 cameraOffset = new SerializedObject(_camera).FindProperty("_offset").vector3Value;
+        Quaternion cameraRotation = _camera.transform.rotation;
         for (int attempt = 0; attempt < 3; attempt++)
         {
             Assert.That(Launch(Vector3.left), Is.False);
@@ -329,7 +331,10 @@ public sealed class PlayerIntegrationTests
             Assert.That(_player.IsMoving, Is.False, "Player did not stop within 3 seconds.");
             Assert.That(_body.linearVelocity.sqrMagnitude, Is.LessThan(0.001f));
             yield return null;
-            Assert.That(_camera.transform.position.x, Is.EqualTo(_body.position.x + 6f).Within(0.01f));
+            Assert.That(_camera.transform.position.x, Is.EqualTo(_body.position.x + cameraOffset.x).Within(0.01f));
+            Assert.That(_camera.transform.position.y, Is.EqualTo(cameraOffset.y).Within(0.01f));
+            Assert.That(_camera.transform.position.z, Is.EqualTo(cameraOffset.z).Within(0.01f));
+            Assert.That(Quaternion.Angle(_camera.transform.rotation, cameraRotation), Is.LessThan(0.01f));
         }
         Assert.That(launches, Is.EqualTo(3));
         _session.ReachExit();
