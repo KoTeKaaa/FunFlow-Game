@@ -3,23 +3,23 @@ using UnityEngine;
 
 namespace FunFlow.Presentation
 {
-    /// <summary>Палитра и форматирование текста HUD (цвета взяты из веб-прототипа).</summary>
+    /// <summary>Палитра мультяшного ограбления и форматирование текста HUD.</summary>
     public static class HudStyle
     {
         public static readonly Color Background = Hex("10151D");
-        public static readonly Color Panel = Hex("19212B");
-        public static readonly Color Line = Hex("303A47");
-        public static readonly Color Muted = Hex("93A0B1");
-        public static readonly Color Text = Hex("EDF1F5");
-        public static readonly Color Body = Hex("BCC6D2");
-        public static readonly Color Gold = Hex("F5C66B");
-        public static readonly Color Mint = Hex("8BDDC3");
-        public static readonly Color Red = Hex("FA7F89");
+        public static readonly Color Panel = Hex("252238");
+        public static readonly Color Line = Hex("474158");
+        public static readonly Color Muted = Hex("A5A5B5");
+        public static readonly Color Text = Hex("F6E8CB");
+        public static readonly Color Body = Hex("DED4C5");
+        public static readonly Color Gold = Hex("F3BA55");
+        public static readonly Color Mint = Hex("66B9AB");
+        public static readonly Color Red = Hex("EE655F");
         public static readonly Color Orange = Hex("ED9B68");
         public static readonly Color Dark = Hex("202029");
 
-        public const string MutedHex = "#93A0B1";
-        public const string GoldHex = "#F5C66B";
+        public const string MutedHex = "#A5A5B5";
+        public const string GoldHex = "#F3BA55";
 
         // Обычный пробел как разделитель тысяч: в шрифте может не быть узкого неразрывного пробела.
         private static readonly NumberFormatInfo MoneyFormat = new NumberFormatInfo

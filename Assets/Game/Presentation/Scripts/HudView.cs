@@ -86,7 +86,7 @@ namespace FunFlow.Presentation
             lastRange = range;
             weightValue.text = range < 0
                 ? $"{load}%"
-                : $"{load}%<size=55%><color={HudStyle.MutedHex}> · {range}% дальности</color></size>";
+                : $"{load}%<size=50%><color={HudStyle.MutedHex}> · дальность {range}%</color></size>";
         }
 
         public void SetRouteVisible(bool visible)
@@ -100,7 +100,7 @@ namespace FunFlow.Presentation
             int m = Mathf.Max(0, Mathf.CeilToInt(metersLeft));
             if (routeValue == null || m == lastRouteMeters) return; // можно вызывать каждый кадр
             lastRouteMeters = m;
-            routeValue.text = $"{m}<size=55%><color={HudStyle.MutedHex}> м · только вперёд</color></size>";
+            routeValue.text = $"{m}<size=65%> м</size>";
         }
 
         public void SetAlarmIdle()
@@ -122,7 +122,7 @@ namespace FunFlow.Presentation
             int sec = Mathf.CeilToInt(alarmSeconds);
             if (sec == lastAlarmSecond || alarmValue == null) return;
             lastAlarmSecond = sec;
-            alarmValue.text = $"{sec} сек.";
+            alarmValue.text = $"{sec / 60:00}:{sec % 60:00}";
             alarmValue.color = HudStyle.Red;
         }
 
