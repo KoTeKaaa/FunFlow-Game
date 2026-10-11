@@ -25,6 +25,9 @@ public sealed class PlayerIntegrationTests
             .Single(component => component.GetType().FullName == "FunFlow.Player.PlayerMotor");
         Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(savedMotor.gameObject),
             Is.EqualTo("Assets/Game/Player/Prefabs/Player.prefab"));
+        var savedLoot = (MonoBehaviour)Source(Object.FindAnyObjectByType<RunSession>(), "_lootSource");
+        Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(savedLoot.gameObject),
+            Is.EqualTo("Assets/Game/Core/Prefabs/LootSet.prefab"));
         bool reload = !EditorSettings.enterPlayModeOptionsEnabled
             || (EditorSettings.enterPlayModeOptions & EnterPlayModeOptions.DisableDomainReload) == 0;
         yield return new EnterPlayMode(reload);
@@ -49,6 +52,19 @@ public sealed class PlayerIntegrationTests
     private bool Launch(Vector3 direction, float power = 0.2f) =>
         (bool)_motor.GetType().GetMethod("TryLaunch").Invoke(_motor, new object[] { direction, power });
 
+    private MonoBehaviour LootSource => (MonoBehaviour)Source(_session, "_lootSource");
+    private ILootInventory Loot => (ILootInventory)LootSource;
+    private MonoBehaviour BagVisual => Object.FindObjectsByType<MonoBehaviour>()
+        .Single(component => component.GetType().Name == "LootBagVisual");
+    private MonoBehaviour[] Items => Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include,
+        FindObjectsSortMode.None).Where(component => component.GetType().Name == "LootItem").ToArray();
+
+    private void SetValue(int value)
+    {
+        Loot.RemoveFraction(1f);
+        if (value > 0) LootSource.GetType().GetMethod("AddValue").Invoke(LootSource, new object[] { value });
+    }
+
     [Test]
     public void SavedScene_UsesRealPrefabAndSharedCameraAndLootSource()
     {
@@ -69,8 +85,8 @@ public sealed class PlayerIntegrationTests
         yield return null;
         var startPosition = _body.position;
         var cameraPosition = _camera.transform.position;
-        var bag = Object.FindAnyObjectByType<CoreModuleProbe>();
-        var bagVisual = (Transform)Source(bag, "_bagVisual");
+        var bag = LootSource;
+        var bagVisual = BagVisual.transform;
         var bagPosition = bagVisual.position;
         var bagScale = bagVisual.localScale;
         int finished = 0;
@@ -79,7 +95,8 @@ public sealed class PlayerIntegrationTests
         {
             _session.Finished += result => finished++;
             if (attempt > 0) _session.StartRun();
-            bag.SetTestValue(750);
+            SetValue(750);
+            Items[0].SendMessage("OnTriggerEnter", _body.GetComponent<Collider>());
             if (attempt > 0)
             {
                 Assert.That(Launch(Vector3.right), Is.True);
@@ -112,15 +129,17 @@ public sealed class PlayerIntegrationTests
             _player = (IPlayerControl)_motor;
             _body = _motor.GetComponent<Rigidbody>();
             _camera = Object.FindAnyObjectByType<CorridorCamera>();
-            bag = Object.FindAnyObjectByType<CoreModuleProbe>();
-            bagVisual = (Transform)Source(bag, "_bagVisual");
+            bag = LootSource;
+            bagVisual = BagVisual.transform;
             Assert.That(Object.FindObjectsByType<RunSession>().Length, Is.EqualTo(1));
             Assert.That(_session.State, Is.EqualTo(RunState.Waiting));
             Assert.That(_session.Result, Is.Null);
             Assert.That(_player.IsMoving, Is.False);
             Assert.That(Launch(Vector3.right), Is.False);
-            Assert.That(bag.CurrentValue, Is.Zero);
-            Assert.That(bag.NormalizedWeight, Is.Zero);
+            Assert.That(Loot.CurrentValue, Is.Zero);
+            Assert.That(Loot.NormalizedWeight, Is.Zero);
+            Assert.That(Items.Length, Is.EqualTo(3));
+            Assert.That(Items.All(item => item.gameObject.activeSelf), Is.True);
             Assert.That(_body.position, Is.EqualTo(startPosition));
             Assert.That(_camera.transform.position, Is.EqualTo(cameraPosition));
             Assert.That(bagVisual.position, Is.EqualTo(bagPosition));
@@ -194,20 +213,21 @@ public sealed class PlayerIntegrationTests
     }
 
     [UnityTest]
-    public IEnumerator TestLoot_WeightShortensActualSlideButStillAllowsMovement()
+    public IEnumerator RealLoot_WeightShortensActualSlideButStillAllowsMovement()
     {
         // Measure full slides without finishing at the short route's exit.
         // Exit contacts and scene reloads have their own integration tests.
         Object.FindAnyObjectByType<RunExitTrigger>().gameObject.SetActive(false);
-        var loot = (CoreModuleProbe)Source(_session, "_lootSource");
+        var loot = Loot;
         var config = (GameConfig)Source(_motor, "config");
-        Assert.That(Source(loot, "_config"), Is.SameAs(config));
+        Assert.That(Source(LootSource, "config"), Is.SameAs(config));
+        foreach (var item in Items) item.gameObject.SetActive(false);
         _session.StartRun();
         var origin = _body.position;
         float emptyDistance = 0f;
         for (int attempt = 0; attempt < 2; attempt++)
         {
-            loot.SetTestValue(attempt == 0 ? 0 : config.ValueAtFullWeight);
+            SetValue(attempt == 0 ? 0 : config.ValueAtFullWeight);
             Assert.That(loot.NormalizedWeight, Is.EqualTo(attempt));
             Assert.That((float)_motor.GetType().GetProperty("Burden").GetValue(_motor), Is.EqualTo(attempt));
             _body.position = origin;
@@ -225,21 +245,22 @@ public sealed class PlayerIntegrationTests
             if (attempt == 0) emptyDistance = distance;
             else Assert.That(distance, Is.LessThan(emptyDistance));
         }
-        loot.SetTestValue(config.ValueAtFullWeight * 2);
+        SetValue(config.ValueAtFullWeight * 2);
         Assert.That(loot.NormalizedWeight, Is.EqualTo(1f));
         Assert.That(Launch(Vector3.right, 1f), Is.True);
         Assert.That(_body.linearVelocity.x, Is.GreaterThan(0f));
     }
 
     [UnityTest]
-    public IEnumerator TestLoot_BagFollowsAndGrowsAndResultKeepsSnapshot()
+    public IEnumerator RealLoot_BagFollowsAndGrowsAndResultKeepsSnapshot()
     {
-        var loot = (CoreModuleProbe)Source(_session, "_lootSource");
-        var config = (GameConfig)Source(loot, "_config");
-        var bag = (Transform)Source(loot, "_bagVisual");
-        Assert.That(Source(loot, "_playerTarget"), Is.SameAs(_motor.transform));
-        Assert.That(bag.GetComponent<Collider>(), Is.Null, "Visual stub must not block Player or simulate traps.");
-        loot.SetTestValue(0);
+        var loot = Loot;
+        var config = (GameConfig)Source(LootSource, "config");
+        var bag = BagVisual.transform;
+        Assert.That(Source(BagVisual, "target"), Is.SameAs(_motor.transform));
+        Assert.That(Source(BagVisual, "inventorySource"), Is.SameAs(LootSource));
+        Assert.That(bag.GetComponent<Collider>().isTrigger, Is.True);
+        SetValue(0);
         var emptyScale = bag.localScale;
         int changes = 0;
         System.Action onChange = () =>
@@ -249,8 +270,7 @@ public sealed class PlayerIntegrationTests
             Assert.That(loot.NormalizedWeight, Is.EqualTo(1f));
         };
         loot.Changed += onChange;
-        loot.SetTestValue(config.ValueAtFullWeight);
-        loot.SetTestValue(config.ValueAtFullWeight);
+        SetValue(config.ValueAtFullWeight);
         loot.Changed -= onChange;
         Assert.That(changes, Is.EqualTo(1));
         Assert.That(bag.localScale.x, Is.GreaterThan(emptyScale.x));
@@ -260,10 +280,44 @@ public sealed class PlayerIntegrationTests
         yield return null;
         Assert.That(Vector3.Distance(bag.position, _motor.transform.position + new Vector3(-0.8f, -0.1f, 0f)), Is.LessThan(0.01f));
         _session.ReachExit();
-        loot.SetTestValue(0);
+        SetValue(0);
         _session.ReachExit();
         Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(config.ValueAtFullWeight));
         Assert.That(bag.localScale, Is.EqualTo(emptyScale));
+    }
+
+    [UnityTest]
+    public IEnumerator ShortRoute_CollectsEachItemOnceAndFinishesWithRealValue()
+    {
+        Assert.That(LootSource.GetType().Name, Is.EqualTo("LootInventory"));
+        Assert.That(Object.FindAnyObjectByType<CoreModuleProbe>(), Is.Null);
+        var items = Items;
+        Assert.That(items.Length, Is.EqualTo(3));
+        Assert.That(items.All(item => Source(item, "inventory") == LootSource), Is.True);
+        int changes = 0, finishes = 0;
+        Loot.Changed += () => changes++;
+        _session.Finished += result => finishes++;
+        _session.StartRun();
+        for (int launch = 0; launch < 8 && _session.State == RunState.Playing; launch++)
+        {
+            Assert.That(Launch(Vector3.right, 1f), Is.True);
+            float deadline = Time.realtimeSinceStartup + 8f;
+            while (_player.IsMoving && _session.State == RunState.Playing && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            Assert.That(_player.IsMoving && _session.State == RunState.Playing, Is.False);
+        }
+        Assert.That(_session.State, Is.EqualTo(RunState.Won));
+        Assert.That(Loot.CurrentValue, Is.EqualTo(30));
+        Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(30));
+        Assert.That(items.All(item => !item.gameObject.activeSelf), Is.True);
+        foreach (var item in items)
+            item.GetType().GetMethod("OnTriggerEnter", System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance).Invoke(item, new object[] { _body.GetComponent<Collider>() });
+        _session.ReachExit();
+        Assert.That(Loot.CurrentValue, Is.EqualTo(30));
+        Assert.That(changes, Is.EqualTo(3));
+        Assert.That(finishes, Is.EqualTo(1));
+        Assert.That(Launch(Vector3.right), Is.False);
     }
 
     [Test]
