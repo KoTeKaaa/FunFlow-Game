@@ -22,7 +22,7 @@ namespace FunFlow.Player
 
         [Header("Столкновения со стенами")]
         [Tooltip("Доля скорости, теряемая при ударе в лоб (90° к стене).")]
-        [SerializeField, Range(0f, 1f)] private float headOnSpeedLoss = 0.6f;
+        [SerializeField, Range(0f, 1f)] private float headOnSpeedLoss = 0.75f;
         [Tooltip("Доля скорости, теряемая при ударе по касательной (около 0° к стене).")]
         [SerializeField, Range(0f, 1f)] private float glancingSpeedLoss = 0.05f;
         [Tooltip("Отскок: доля скорости в стену, возвращаемая от стены. 0 — только скольжение вдоль неё.")]

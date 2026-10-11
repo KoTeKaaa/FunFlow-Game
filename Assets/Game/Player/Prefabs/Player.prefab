@@ -418,6 +418,10 @@ MonoBehaviour:
   minLaunchPower: 0.1
   stopSpeed: 0.35
   maxLaunchAngle: 77
+  headOnSpeedLoss: 0.75
+  glancingSpeedLoss: 0.05
+  wallBounce: 0.3
+  minImpactSpeed: 0.5
   body: {fileID: 4201570339416702395}
 --- !u!114 &589589284281438927
 MonoBehaviour:
