@@ -181,6 +181,14 @@ PrefabInstance:
       propertyPath: m_fontColor32.rgba
       value: 4289444198
       objectReference: {fileID: 0}
+    - target: {fileID: 4038055514692935464, guid: 83f209504ce45314b8c976138c564dab, type: 3}
+      propertyPath: runSessionSource
+      value: 
+      objectReference: {fileID: 1580558110}
+    - target: {fileID: 4038055514692935464, guid: 83f209504ce45314b8c976138c564dab, type: 3}
+      propertyPath: levelSequenceSource
+      value: 
+      objectReference: {fileID: 1580558113}
     - target: {fileID: 5308321158913845227, guid: 83f209504ce45314b8c976138c564dab, type: 3}
       propertyPath: m_fontColor32.rgba
       value: 4290094501

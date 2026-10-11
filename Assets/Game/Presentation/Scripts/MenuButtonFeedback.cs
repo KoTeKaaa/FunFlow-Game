@@ -18,7 +18,12 @@ namespace FunFlow.Presentation
             hovered = selected = false;
             if (original != Vector3.zero) transform.localScale = original;
         }
-        private void Click() => GetComponentInParent<MainMenuController>()?.PlayClick();
+        private void Click()
+        {
+            var menu = GetComponentInParent<MainMenuController>();
+            if (menu != null) menu.PlayClick();
+            else GetComponentInParent<PauseMenuController>()?.PlayClick();
+        }
         private void Update()
         {
             float scale = button.interactable && (hovered || selected) ? 1.025f : 1f;

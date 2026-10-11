@@ -44,6 +44,64 @@ public sealed class RunSessionTests
         yield return new ExitPlayMode();
     }
 
+    [UnityTest]
+    public IEnumerator Pause_FreezesAlarmAndBlocksFinishUntilResume()
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        _session.TriggerAlarm();
+        float originalScale = Time.timeScale;
+        float remaining = _session.RemainingTime;
+        _session.SetPaused(true);
+        Assert.That(_session.IsPaused, Is.True);
+        Assert.That(Time.timeScale, Is.Zero);
+        Assert.That(_probe.ControlEnabled, Is.False);
+        yield return new WaitForSecondsRealtime(0.1f);
+        _session.SendMessage("Update");
+        _session.ReachExit();
+        Assert.That(_session.State, Is.EqualTo(RunState.Alarm));
+        Assert.That(_session.RemainingTime, Is.EqualTo(remaining));
+        Assert.That(_session.Result, Is.Null);
+        _session.SetPaused(false);
+        Assert.That(Time.timeScale, Is.EqualTo(originalScale));
+        Assert.That(_probe.ControlEnabled, Is.True);
+        _session.ReachExit();
+        Assert.That(_session.State, Is.EqualTo(RunState.Won));
+    }
+
+    [Test]
+    public void Pause_DisablingSessionRestoresTimeScale()
+    {
+        _root.SetActive(true);
+        float originalScale = Time.timeScale;
+        _session.SetPaused(true);
+        Assert.That(_session.IsPaused, Is.False, "A waiting run cannot be paused.");
+        _session.StartRun();
+        _session.SetPaused(true);
+        _root.SetActive(false);
+        Assert.That(_session.IsPaused, Is.False);
+        Assert.That(Time.timeScale, Is.EqualTo(originalScale));
+        Assert.That(_probe.ControlEnabled, Is.False);
+    }
+
+    [Test]
+    public void Pause_ResumeRestoresPreviousTimeScale()
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        float originalScale = Time.timeScale;
+        try
+        {
+            Time.timeScale = 0.5f;
+            _session.SetPaused(true);
+            _session.SetPaused(true);
+            _session.SetPaused(false);
+            Assert.That(Time.timeScale, Is.EqualTo(0.5f));
+            Assert.That(_probe.ControlEnabled, Is.True);
+        }
+        finally { _session.SetPaused(false); Time.timeScale = originalScale; }
+    }
+
     [Test]
     public void Alarm_StartsOnceAndPublishesConsistentProperties()
     {
