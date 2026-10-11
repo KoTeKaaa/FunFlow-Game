@@ -64,6 +64,85 @@ public sealed class PlayerIntegrationTests
     }
 
     [UnityTest]
+    public IEnumerator ThreeRestarts_ReloadSceneAndRestoreAttemptAndModuleLinks()
+    {
+        yield return null;
+        var startPosition = _body.position;
+        var cameraPosition = _camera.transform.position;
+        var bag = Object.FindAnyObjectByType<CoreModuleProbe>();
+        var bagVisual = (Transform)Source(bag, "_bagVisual");
+        var bagPosition = bagVisual.position;
+        var bagScale = bagVisual.localScale;
+        int finished = 0;
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            _session.Finished += result => finished++;
+            if (attempt > 0) _session.StartRun();
+            bag.SetTestValue(750);
+            if (attempt > 0)
+            {
+                Assert.That(Launch(Vector3.right), Is.True);
+                yield return new WaitForFixedUpdate();
+            }
+            if (attempt == 2) _session.ReachExit();
+            var hiddenObject = GameObject.Find("GameRoot/MuseumLevel/loot (1)");
+            hiddenObject.SetActive(false);
+            var alarm = GameObject.Find("GameRoot/MuseumLevel/AlarmZone");
+            alarm.SendMessage("OnTriggerEnter", _body.GetComponent<Collider>());
+
+            var oldSession = _session;
+            var oldBody = _body;
+            var oldBag = bag;
+            oldSession.RestartRun();
+            oldSession.RestartRun();
+            oldSession.StartRun();
+            oldSession.ReachExit();
+            Assert.That(Launch(Vector3.right), Is.False);
+            float deadline = Time.realtimeSinceStartup + 10f;
+            while (oldSession != null && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            Assert.That(oldSession == null, Is.True, "Restart did not unload the old scene.");
+            yield return null;
+            Assert.That(oldBody == null && oldBag == null, Is.True);
+
+            _session = Object.FindAnyObjectByType<RunSession>();
+            _motor = Object.FindObjectsByType<MonoBehaviour>()
+                .Single(component => component.GetType().FullName == "FunFlow.Player.PlayerMotor");
+            _player = (IPlayerControl)_motor;
+            _body = _motor.GetComponent<Rigidbody>();
+            _camera = Object.FindAnyObjectByType<CorridorCamera>();
+            bag = Object.FindAnyObjectByType<CoreModuleProbe>();
+            bagVisual = (Transform)Source(bag, "_bagVisual");
+            Assert.That(Object.FindObjectsByType<RunSession>().Length, Is.EqualTo(1));
+            Assert.That(_session.State, Is.EqualTo(RunState.Waiting));
+            Assert.That(_session.Result, Is.Null);
+            Assert.That(_player.IsMoving, Is.False);
+            Assert.That(Launch(Vector3.right), Is.False);
+            Assert.That(bag.CurrentValue, Is.Zero);
+            Assert.That(bag.NormalizedWeight, Is.Zero);
+            Assert.That(_body.position, Is.EqualTo(startPosition));
+            Assert.That(_camera.transform.position, Is.EqualTo(cameraPosition));
+            Assert.That(bagVisual.position, Is.EqualTo(bagPosition));
+            Assert.That(bagVisual.localScale, Is.EqualTo(bagScale));
+            Assert.That(Source(_session, "_playerSource"), Is.SameAs(_motor));
+            Assert.That(Source(_session, "_lootSource"), Is.SameAs(bag));
+            Assert.That(Source(_motor, "lootSource"), Is.SameAs(bag));
+            Assert.That(GameObject.Find("GameRoot/MuseumLevel/loot (1)"), Is.Not.Null);
+            var resetAlarm = GameObject.Find("GameRoot/MuseumLevel/AlarmZone")
+                .GetComponents<MonoBehaviour>().Single(component => component.GetType().Name == "AlarmTrap");
+            Assert.That(resetAlarm.GetType().GetField("_isUsed",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .GetValue(resetAlarm), Is.EqualTo(false));
+        }
+        Assert.That(finished, Is.EqualTo(1));
+        _session.Finished += result => finished++;
+        _session.StartRun();
+        _session.ReachExit();
+        Assert.That(finished, Is.EqualTo(2));
+    }
+
+    [UnityTest]
     public IEnumerator ThreeLaunches_RejectMovingAndBackwardInputAndFollowPlayer()
     {
         int launches = 0;
@@ -117,6 +196,9 @@ public sealed class PlayerIntegrationTests
     [UnityTest]
     public IEnumerator TestLoot_WeightShortensActualSlideButStillAllowsMovement()
     {
+        // Measure full slides without finishing at the short route's exit.
+        // Exit contacts and scene reloads have their own integration tests.
+        Object.FindAnyObjectByType<RunExitTrigger>().gameObject.SetActive(false);
         var loot = (CoreModuleProbe)Source(_session, "_lootSource");
         var config = (GameConfig)Source(_motor, "config");
         Assert.That(Source(loot, "_config"), Is.SameAs(config));

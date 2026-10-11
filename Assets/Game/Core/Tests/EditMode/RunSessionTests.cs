@@ -121,6 +121,20 @@ public sealed class RunSessionTests
         Assert.That(_probe.ControlEnabled, Is.False);
     }
 
+    [Test]
+    public void RestartWithoutSavedScene_ReportsErrorAndKeepsAttempt()
+    {
+        var scene = UnityEngine.SceneManagement.SceneManager.CreateScene("Unsaved run");
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(_root, scene);
+        _root.SetActive(true);
+        _session.StartRun();
+        LogAssert.Expect(LogType.Error,
+            "RunSession: Restart requires a saved scene enabled in Build Settings.");
+        _session.RestartRun();
+        Assert.That(_session.State, Is.EqualTo(RunState.Playing));
+        Assert.That(_probe.ControlEnabled, Is.True);
+    }
+
     [TestCase("_playerSource", false)]
     [TestCase("_lootSource", false)]
     [TestCase("_playerSource", true)]
