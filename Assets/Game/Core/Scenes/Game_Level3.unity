@@ -228,6 +228,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 4038055514692935464, guid: 83f209504ce45314b8c976138c564dab, type: 3}
+      propertyPath: runSessionSource
+      value: 
+      objectReference: {fileID: 1580558110}
+    - target: {fileID: 4038055514692935464, guid: 83f209504ce45314b8c976138c564dab, type: 3}
+      propertyPath: levelSequenceSource
+      value: 
+      objectReference: {fileID: 1580558113}
     - target: {fileID: 7024939798404887905, guid: 83f209504ce45314b8c976138c564dab, type: 3}
       propertyPath: m_Name
       value: HUD

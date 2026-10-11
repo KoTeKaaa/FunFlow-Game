@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public sealed class RunSession : MonoBehaviour, IRunSession
+public sealed class RunSession : MonoBehaviour, IRunSession, IRunPause
 {
     [SerializeField] private MonoBehaviour _playerSource;
     [SerializeField] private MonoBehaviour _lootSource;
@@ -13,6 +13,32 @@ public sealed class RunSession : MonoBehaviour, IRunSession
     private bool _restarting;
     private double _alarmDeadline;
     private float _remainingTime;
+    private bool _paused;
+    private float _timeScaleBeforePause;
+
+    public bool IsPaused => _paused;
+    public event Action<bool> PauseChanged;
+
+    public void SetPaused(bool paused)
+    {
+        if (_paused == paused) return;
+        if (paused && (!isActiveAndEnabled || _restarting ||
+            (State != RunState.Playing && State != RunState.Alarm) || !ValidateSources())) return;
+        _paused = paused;
+        if (paused)
+        {
+            _timeScaleBeforePause = Time.timeScale;
+            Time.timeScale = 0f;
+            _player.SetControlEnabled(false);
+        }
+        else
+        {
+            Time.timeScale = _timeScaleBeforePause;
+            if (isActiveAndEnabled && ValidateSources())
+                _player.SetControlEnabled(!_restarting && (State == RunState.Playing || State == RunState.Alarm));
+        }
+        PauseChanged?.Invoke(paused);
+    }
 
     public RunState State => _run.State;
     public bool HasAlarmTriggered => _run.HasAlarmTriggered;
@@ -25,7 +51,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
     [ContextMenu("Test Run/Alarm")]
     public void TriggerAlarm()
     {
-        if (!isActiveAndEnabled || _restarting || State != RunState.Playing || !ValidateSources())
+        if (!isActiveAndEnabled || _restarting || _paused || State != RunState.Playing || !ValidateSources())
             return;
 
         if (_config == null || !float.IsFinite(_config.AlarmDurationSeconds) || _config.AlarmDurationSeconds <= 0f)
@@ -43,7 +69,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
 
     private void Update()
     {
-        if (!_restarting && State == RunState.Alarm && ValidateSources())
+        if (!_restarting && !_paused && State == RunState.Alarm && ValidateSources())
             RefreshAlarm(Time.timeAsDouble, false);
     }
 
@@ -73,6 +99,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
 
     private void OnDisable()
     {
+        SetPaused(false);
         if (_playerSource != null && _playerSource is IPlayerControl player)
             player.SetControlEnabled(false);
     }
@@ -82,6 +109,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
         StateChanged = null;
         RemainingTimeChanged = null;
         Finished = null;
+        PauseChanged = null;
         _player = null;
         _loot = null;
     }
@@ -132,7 +160,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
     [ContextMenu("Test Run/Start")]
     public void StartRun()
     {
-        if (!isActiveAndEnabled || _restarting || !ValidateSources() || !_run.StartRun())
+        if (!isActiveAndEnabled || _restarting || _paused || !ValidateSources() || !_run.StartRun())
             return;
 
         _player.SetControlEnabled(true);
@@ -142,7 +170,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession
     [ContextMenu("Test Run/Reach Exit")]
     public void ReachExit()
     {
-        if (!isActiveAndEnabled || _restarting || (State != RunState.Playing && State != RunState.Alarm)
+        if (!isActiveAndEnabled || _restarting || _paused || (State != RunState.Playing && State != RunState.Alarm)
             || !ValidateSources())
             return;
 

@@ -27,6 +27,7 @@ namespace FunFlow.Presentation
         [SerializeField] private AudioMixerGroup output;
 
         private AudioSource[] voices;
+        private readonly Dictionary<AudioSource, float> voiceVolumes = new Dictionary<AudioSource, float>();
         private int nextVoice;
         private readonly List<AudioClip> generated = new List<AudioClip>();
         private AudioClip launchClip, pickupClip, impactClip, cutClip, shatterClip, alarmClip, tickClip, winClip, loseClip;
@@ -110,7 +111,8 @@ namespace FunFlow.Presentation
 
             source.clip = clip;
             source.pitch = pitch;
-            source.volume = Mathf.Clamp01(volume) * masterVolume * AudioPreferences.EffectsVolume;
+            voiceVolumes[source] = Mathf.Clamp01(volume) * masterVolume;
+            source.volume = voiceVolumes[source] * AudioPreferences.EffectsVolume;
             source.Play();
         }
 
@@ -118,6 +120,12 @@ namespace FunFlow.Presentation
         {
             generated.Add(clip);
             return clip;
+        }
+
+        public void RefreshVolume()
+        {
+            foreach (var voice in voiceVolumes)
+                if (voice.Key != null) voice.Key.volume = voice.Value * AudioPreferences.EffectsVolume;
         }
     }
 }
