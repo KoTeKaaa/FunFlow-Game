@@ -11,6 +11,7 @@ public sealed class CoreModuleProbe : MonoBehaviour, IPlayerControl, ILootInvent
     public bool IsMoving => false;
     public bool ControlEnabled { get; private set; }
     public event Action Launched { add { } remove { } }
+    public event Action<Vector3, float> Collided { add { } remove { } }
     public event Action Changed;
 
     public void SetControlEnabled(bool enabled) => ControlEnabled = enabled;

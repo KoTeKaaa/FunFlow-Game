@@ -37,6 +37,7 @@ namespace FunFlow.Presentation.Sandbox
         // ---------- IPlayerControl ----------
         public bool IsMoving { get; private set; }
         public event Action Launched;
+        public event Action<Vector3, float> Collided { add { } remove { } }
 
         private readonly RunStateMachine machine = new RunStateMachine();
         private bool controlEnabled;
