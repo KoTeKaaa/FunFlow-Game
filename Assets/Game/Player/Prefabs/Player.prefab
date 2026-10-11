@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8777800657414581518}
   - component: {fileID: 5128980626371146930}
   - component: {fileID: 8615157215038060213}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: PathPreview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -176,7 +176,7 @@ GameObject:
   - component: {fileID: 203719953807236446}
   - component: {fileID: 5940383730725480292}
   - component: {fileID: 1132740268274666945}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: StopMarker
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -270,7 +270,7 @@ GameObject:
   - component: {fileID: 4201570339416702395}
   - component: {fileID: 5617821729761158231}
   - component: {fileID: 589589284281438927}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
