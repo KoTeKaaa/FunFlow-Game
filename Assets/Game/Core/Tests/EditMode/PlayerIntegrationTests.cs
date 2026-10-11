@@ -106,7 +106,20 @@ public sealed class PlayerIntegrationTests
                 Assert.That(Launch(Vector3.right), Is.True);
                 yield return new WaitForFixedUpdate();
             }
-            if (attempt == 2) _session.ReachExit();
+            if (attempt > 0)
+            {
+                _session.TriggerAlarm();
+                Assert.That(_session.HasAlarmTriggered, Is.True);
+                Assert.That(_session.RemainingTime, Is.GreaterThan(0f));
+            }
+            if (attempt == 2)
+            {
+                typeof(RunSession).GetField("_alarmDeadline",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .SetValue(_session, Time.timeAsDouble - 1d);
+                _session.SendMessage("Update");
+                Assert.That(_session.State, Is.EqualTo(RunState.Lost));
+            }
             var hiddenObject = GameObject.Find("GameRoot/MuseumLevel/loot (1)");
             hiddenObject.SetActive(false);
             var alarm = GameObject.Find("GameRoot/MuseumLevel").transform
@@ -141,6 +154,8 @@ public sealed class PlayerIntegrationTests
             bagVisual = BagVisual.transform;
             Assert.That(Object.FindObjectsByType<RunSession>().Length, Is.EqualTo(1));
             Assert.That(_session.State, Is.EqualTo(RunState.Waiting));
+            Assert.That(_session.HasAlarmTriggered, Is.False);
+            Assert.That(_session.RemainingTime, Is.Zero);
             Assert.That(_session.Result, Is.Null);
             Assert.That(_player.IsMoving, Is.False);
             Assert.That(Launch(Vector3.right), Is.False);
