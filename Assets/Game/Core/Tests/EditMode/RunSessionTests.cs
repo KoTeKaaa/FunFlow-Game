@@ -15,6 +15,9 @@ public sealed class RunSessionTests
     [UnitySetUp]
     public IEnumerator SetUp()
     {
+        UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+            UnityEditor.SceneManagement.NewSceneSetup.EmptyScene,
+            UnityEditor.SceneManagement.NewSceneMode.Single);
         yield return new EnterPlayMode();
         _root = new GameObject("Core test");
         _root.SetActive(false);

@@ -1,5 +1,5 @@
 using UnityEngine;
-// using Game.Core.Contracts; 
+using UnityEngine.Events;
 
 public class ValuableShowcase : MonoBehaviour
 {
@@ -13,6 +13,8 @@ public class ValuableShowcase : MonoBehaviour
     [Header("Визуал")]
     public GameObject glassModel; // Ссылка на модель стекла
     public GameObject vaseModel;  // Ссылка на модель кувшина
+    [SerializeField] private MonoBehaviour lootSource;
+    public UnityEvent<Vector3> Broken = new UnityEvent<Vector3>();
 
     private bool _isBroken = false;
 
@@ -21,7 +23,7 @@ public class ValuableShowcase : MonoBehaviour
         if (_isBroken) return;
 
         // Проверяем, что витрину пробил сам игрок (Слой Player - 8)
-        if (other.gameObject.layer == 8)
+        if (other.gameObject.layer == 8 && lootSource is ILootInventory)
         {
             _isBroken = true;
             Debug.Log($"[Showcase] Витрина разбита! Получено: {rewardValue}. Игрок замедлен.");
@@ -38,15 +40,12 @@ public class ValuableShowcase : MonoBehaviour
             if (glassModel != null) glassModel.SetActive(false);
             if (vaseModel != null) vaseModel.SetActive(false);
 
-            // --- БЛОК ИНТЕГРАЦИИ ---
-            /*
-            ILootInventory loot = other.GetComponentInParent<ILootInventory>();
+            ILootInventory loot = lootSource as ILootInventory;
             if (loot != null)
             {
-                loot.AddLoot(rewardValue);
+                loot.AddValue(rewardValue);
             }
-            */
-            // -----------------------
+            Broken.Invoke(transform.position);
         }
     }
 }
