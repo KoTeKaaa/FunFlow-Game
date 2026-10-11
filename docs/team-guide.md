@@ -231,7 +231,7 @@ docs/
 | `RunState` | `Waiting`, `Playing`, `Alarm`, `Won`, `Lost` | Core / Player, Presentation |
 | `RunResult` | `bool IsVictory`, `int FinalValue`; конструктор `(bool isVictory, int finalValue)` | Неизменяемый снимок Core / Presentation |
 | `ILootInventory` | `int CurrentValue`, `float NormalizedWeight`, `event Action Changed`, `void AddValue(int value)`, `int RemoveFraction(float fraction)` | Loot / Player, Core, Presentation, режущие ловушки Level |
-| `IPlayerControl` | `bool IsMoving`, `event Action Launched`, `void SetControlEnabled(bool enabled)` | Player / Core, Presentation |
+| `IPlayerControl` | `bool IsMoving`, `event Action Launched`, `event Action<Vector3, float> Collided`, `void SetControlEnabled(bool enabled)` | Player / Core, Presentation |
 | `IRunSession` | `RunState State`, `bool HasAlarmTriggered`, `float RemainingTime`, `RunResult? Result` | Core / Presentation, Level |
 | `IRunSession`: уведомления | `event Action<RunState> StateChanged`, `event Action<float> RemainingTimeChanged`, `event Action<RunResult> Finished` | Core / Presentation |
 | `IRunSession`: команды | `void StartRun()`, `void RestartRun()`, `void TriggerAlarm()`, `void ReachExit()` | Core / кнопки Presentation, сигнализация и выход Level |
@@ -241,6 +241,7 @@ docs/
 - `RemoveFraction` принимает конечную долю 0…1; значение вне диапазона отклоняется до изменения данных. Предлагаем округлять потерю вниз до целого, возвращать фактически снятую стоимость и не опускать остаток ниже нуля. Долю задаёт ловушка в Inspector; величину потери вычисляет Loot. Значение 0 и пустой мешок дают потерю 0.
 - `NormalizedWeight` всегда конечна и находится в диапазоне 0…1. `Changed` возникает один раз после изменения стоимости/тяжести, когда оба значения уже актуальны; при отсутствии изменения событие не требуется. HUD читает начальные значения при подключении, затем реагирует на события.
 - `SetControlEnabled(false)` запрещает новое прицеливание/запуск и отменяет незавершённое прицеливание, но не останавливает уже движущийся Rigidbody. `Launched` возникает один раз после принятого запуска; ввод при запрете управления или во время движения не создаёт это событие.
+- `Collided` передаёт точку контакта в мировых координатах и силу 0…1 один раз на удар о препятствие, не каждый шаг физики. `Vector3` — тип UnityEngine. Player публикует событие, Presentation использует его для звука и частиц.
 - `StartRun` принимается только в `Waiting`. `TriggerAlarm` принимается только в `Playing`, устанавливает `HasAlarmTriggered` и один срок; повторный вызов не продлевает время. `ReachExit` принимается только в `Playing`/`Alarm`. Эти команды в недопустимом состоянии игнорируются.
 - До тревоги `RemainingTime == 0`, отсчёта нет. При тревоге время неотрицательно, после завершения оно больше не меняется. Сначала обновляются все свойства, затем идут `StateChanged`/`RemainingTimeChanged` для изменившихся значений, затем однократный `Finished`. В обработчике любого события доступны согласованные данные. `HasAlarmTriggered` сохраняет факт тревоги до Restart, даже после победы/поражения.
 - `RestartRun` перезагружает игровую сцену и сбрасывает состояние всех модулей согласно A3; не создаём отдельный метод сброса денег в Core. До готовности сцены это только контракт. После перезагрузки ссылки и подписки подключаются заново.
