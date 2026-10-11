@@ -6,18 +6,23 @@ namespace FunFlow.Player
     /// <summary>
     /// Скольжение шарика по полу XZ: запуск, постоянное замедление, остановка малой скорости,
     /// запрет движения назад (vx >= 0) и прыжков (Y заморожен).
+    /// Реализует IPlayerControl для Core; тяжесть берёт из ILootInventory (Loot).
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
-    public class PlayerMotor : MonoBehaviour
+    public class PlayerMotor : MonoBehaviour, IPlayerControl
     {
-        // Временно здесь, пока №1 не заведёт общий конфиг в Core/Config.
-        [Header("Баланс (временно, до Core/Config)")]
-        [SerializeField, Min(0.1f)] private float baseSpeed = 14f;
-        [SerializeField, Min(0.1f)] private float baseDeceleration = 7f;
-        [SerializeField, Min(0f)] private float speedBurdenFactor = 0.35f;
-        [SerializeField, Min(0f)] private float decelerationBurdenFactor = 1.15f;
+        [Tooltip("Общий конфиг баланса: MaxLaunchSpeed, SlideDeceleration, FullWeightSpeedMultiplier, StopSpeed.")]
+        [SerializeField] private GameConfig config;
+        [Tooltip("Источник тяжести мешка — компонент, реализующий ILootInventory. Подключается в сцене.")]
+        [SerializeField] private MonoBehaviour lootSource;
+
+        // Параметры, которых нет в GameConfig; перенести туда после согласования с №1.
+        [Header("Баланс (нет в GameConfig)")]
+        [Tooltip("Рост замедления при полном мешке: a = SlideDeceleration · (1 + k · тяжесть). 0 — тяжесть влияет только на скорость.")]
+        [SerializeField, Min(0f)] private float decelerationBurdenFactor;
+        [Tooltip("Доля MaxLaunchSpeed при самом слабом запуске.")]
         [SerializeField, Range(0f, 1f)] private float minLaunchPower = 0.1f;
-        [SerializeField, Min(0f)] private float stopSpeed = 0.35f;
+        [Tooltip("Наибольший угол запуска от +X, градусы.")]
         [SerializeField, Range(0f, 90f)] private float maxLaunchAngle = 77f;
 
         [Header("Столкновения со стенами")]
@@ -38,7 +43,9 @@ namespace FunFlow.Player
 
         private const int MaxWallNormals = 4;
 
+        private ILootInventory loot;
         private float burden;
+        private bool controlEnabled = true;
         private bool isMoving;
         // Скорость, с которой тело вошло в текущий шаг физики, — до того, как PhysX погасил её о стену.
         private Vector3 stepVelocity;
@@ -57,33 +64,36 @@ namespace FunFlow.Player
         /// <summary>true — начал движение, false — остановился.</summary>
         public event Action<bool> MovingChanged;
         /// <summary>
-        /// Удар о препятствие: точка контакта и сила 0..1 (скорость в стену относительно baseSpeed).
+        /// Удар о препятствие: точка контакта и сила 0..1 (скорость в стену относительно MaxLaunchSpeed).
         /// Пол и касания без удара не считаются.
         /// </summary>
         public event Action<Vector3, float> Collided;
 
         public bool IsMoving => isMoving;
-        public bool ControlEnabled { get; set; } = true;
-        public bool CanLaunch => ControlEnabled && !isMoving;
+        public bool ControlEnabled => controlEnabled;
+        public bool CanLaunch => controlEnabled && !isMoving;
         public float Burden => burden;
 
-        public void SetBurden(float value) => burden = Mathf.Clamp01(value);
+        /// <summary>Запрещает новое прицеливание и запуск; текущее движение не останавливает.</summary>
+        public void SetControlEnabled(bool enabled) => controlEnabled = enabled;
 
+        /// <summary>Полный мешок оставляет FullWeightSpeedMultiplier от скорости, а не ноль.</summary>
         public float LaunchSpeed(float power) =>
-            Mathf.Lerp(minLaunchPower, 1f, Mathf.Clamp01(power)) * baseSpeed / (1f + speedBurdenFactor * burden);
+            Mathf.Lerp(minLaunchPower, 1f, Mathf.Clamp01(power)) * config.MaxLaunchSpeed *
+            Mathf.Lerp(1f, config.FullWeightSpeedMultiplier, burden);
 
-        public float Deceleration => baseDeceleration * (1f + decelerationBurdenFactor * burden);
+        public float Deceleration => config.SlideDeceleration * (1f + decelerationBurdenFactor * burden);
 
         /// <summary>
         /// Длина скольжения по полу без препятствий — по тем же шагам, что FixedUpdate:
-        /// каждый шаг скорость падает на a·dt, затем тело проходит v·dt; при v ≤ stopSpeed — стоп.
+        /// каждый шаг скорость падает на a·dt, затем тело проходит v·dt; при v ≤ StopSpeed — стоп.
         /// Это v²/(2a) без ошибки дискретизации.
         /// </summary>
         public float SlideDistance(float power)
         {
             float v0 = LaunchSpeed(power);
             float dv = Deceleration * Time.fixedDeltaTime;
-            int steps = Mathf.Max(0, Mathf.CeilToInt((v0 - stopSpeed) / dv) - 1);
+            int steps = Mathf.Max(0, Mathf.CeilToInt((v0 - config.StopSpeed) / dv) - 1);
             return Time.fixedDeltaTime * (steps * v0 - dv * steps * (steps + 1) * 0.5f);
         }
 
@@ -112,8 +122,39 @@ namespace FunFlow.Player
 
         private void Reset() => body = GetComponent<Rigidbody>();
 
+        private void OnValidate()
+        {
+            // При перетаскивании объекта в поле Unity берёт первый MonoBehaviour — ищем нужный на том же объекте.
+            if (lootSource == null || lootSource is ILootInventory) return;
+            lootSource = lootSource.GetComponent<ILootInventory>() as MonoBehaviour;
+            if (lootSource == null) Debug.LogWarning($"{name}: источник тяжести должен реализовывать ILootInventory.", this);
+        }
+
+        private void OnEnable()
+        {
+            if (config == null)
+            {
+                Debug.LogError($"{name}: не назначен GameConfig — шарик отключён.", this);
+                enabled = false;
+                return;
+            }
+
+            loot = lootSource as ILootInventory;
+            if (loot == null)
+            {
+                Debug.LogError($"{name}: не назначен источник тяжести (ILootInventory) — тяжесть считается нулевой.", this);
+                return;
+            }
+
+            loot.Changed += OnLootChanged;
+            OnLootChanged();
+        }
+
         private void OnDisable()
         {
+            if (loot != null) loot.Changed -= OnLootChanged;
+            loot = null;
+            burden = 0f;
             isMoving = false;
             stepVelocity = Vector3.zero;
             ClearContacts();
@@ -134,7 +175,7 @@ namespace FunFlow.Player
             ClearContacts();
 
             float speed = v.magnitude - Deceleration * Time.fixedDeltaTime;
-            if (speed <= stopSpeed)
+            if (speed <= config.StopSpeed)
             {
                 stepVelocity = Vector3.zero;
                 body.linearVelocity = Vector3.zero;
@@ -202,7 +243,7 @@ namespace FunFlow.Player
                 if (slide.sqrMagnitude > result.sqrMagnitude) result = slide;
             }
 
-            Collided?.Invoke(point, Mathf.Clamp01(approach / baseSpeed));
+            Collided?.Invoke(point, Mathf.Clamp01(approach / config.MaxLaunchSpeed));
             return result;
         }
 
@@ -273,6 +314,8 @@ namespace FunFlow.Player
             if (tangent.x < 0f) tangent = -tangent;
             return tangent * Mathf.Max(0f, Vector3.Dot(velocity, tangent));
         }
+
+        private void OnLootChanged() => burden = Mathf.Clamp01(loot.NormalizedWeight);
 
         private void ClearContacts()
         {

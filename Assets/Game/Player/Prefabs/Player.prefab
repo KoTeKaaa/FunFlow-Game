@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8777800657414581518}
   - component: {fileID: 5128980626371146930}
   - component: {fileID: 8615157215038060213}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: PathPreview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -176,7 +176,7 @@ GameObject:
   - component: {fileID: 203719953807236446}
   - component: {fileID: 5940383730725480292}
   - component: {fileID: 1132740268274666945}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: StopMarker
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -270,7 +270,7 @@ GameObject:
   - component: {fileID: 4201570339416702395}
   - component: {fileID: 5617821729761158231}
   - component: {fileID: 589589284281438927}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -411,12 +411,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f492f3be43d1e7745b9f353ce01bed27, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FunFlow.Player.PlayerMotor
-  baseSpeed: 14
-  baseDeceleration: 7
-  speedBurdenFactor: 0.35
-  decelerationBurdenFactor: 1.15
+  config: {fileID: 11400000, guid: c92a21b2324d2d3b993b271213acfba4, type: 2}
+  lootSource: {fileID: 0}
+  decelerationBurdenFactor: 0
   minLaunchPower: 0.1
-  stopSpeed: 0.35
   maxLaunchAngle: 77
   headOnSpeedLoss: 0.75
   glancingSpeedLoss: 0.05
@@ -439,6 +437,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FunFlow.Player.PlayerLaunchInput
   motor: {fileID: 5617821729761158231}
   viewCamera: {fileID: 0}
+  config: {fileID: 11400000, guid: c92a21b2324d2d3b993b271213acfba4, type: 2}
+  pointerPositionAction: {fileID: -5818382144876698730, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  launchAction: {fileID: -6225020674209584992, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   grabRadius: 1.2
-  maxPullDistance: 4
-  minPullDistance: 0.3
+  minDragPixels: 15
