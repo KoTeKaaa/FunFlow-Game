@@ -16,4 +16,7 @@ public interface ILevelSequence
 
     // Clears the session results and opens the first level.
     void RestartFromFirstLevel();
+
+    // Clears the session results and opens the main menu.
+    void ReturnToMainMenu();
 }

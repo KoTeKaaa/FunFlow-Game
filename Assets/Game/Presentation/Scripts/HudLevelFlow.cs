@@ -7,7 +7,7 @@ namespace FunFlow.Presentation
 {
     /// <summary>
     /// Дополняет карточку HudScreens последовательностью уровней: номер уровня, кнопка
-    /// «Следующий уровень» после победы и финальный итог после последнего уровня с кнопкой «Сначала».
+    /// «Следующий уровень» после победы и финальный итог с выходом в главное меню.
     /// Главная кнопка карточки по-прежнему перезапускает текущий уровень через IRunSession.
     /// </summary>
     public sealed class HudLevelFlow : MonoBehaviour
@@ -105,8 +105,8 @@ namespace FunFlow.Presentation
             SetText(titleText, $"Музей обчищен!\nИтого <color={HudStyle.GoldHex}>{HudStyle.Money(total)} {HudStyle.Coins(total)}</color>");
             SetText(bodyText, Breakdown());
             SetText(primaryLabel, $"Переиграть уровень {sequence.LevelNumber}");
-            SetText(levelButtonLabel, "Сначала →");
-            SetText(hintText, "N — сначала · R — переиграть уровень");
+            SetText(levelButtonLabel, "Выход в главное меню");
+            SetText(hintText, "N — главное меню · R — переиграть уровень");
         }
 
         /// <summary>То же, что нажатие кнопки уровня. Срабатывает один раз.</summary>
@@ -120,7 +120,7 @@ namespace FunFlow.Presentation
             if (overlay != null) overlay.interactable = false;
             screens.Hide(); // R/Enter больше не отправят Restart поверх загрузки уровня
             if (sequence.HasNextLevel) sequence.LoadNextLevel();
-            else sequence.RestartFromFirstLevel();
+            else sequence.ReturnToMainMenu();
         }
 
         private string Breakdown()

@@ -81,19 +81,27 @@ public sealed class LevelSequence : MonoBehaviour, ILevelSequence
         Load(0);
     }
 
-    private void Load(int index)
+    public void ReturnToMainMenu()
+    {
+        if (isActiveAndEnabled && Load("Assets/Game/Presentation/Scenes/MainMenu.unity"))
+            ResetSession();
+    }
+
+    private void Load(int index) => Load(_config.GetScenePath(index));
+
+    private bool Load(string path)
     {
         if (!Application.isPlaying || _loading)
-            return;
+            return false;
 
-        string path = _config.GetScenePath(index);
         if (!Application.CanStreamedLevelBeLoaded(path))
         {
             Debug.LogError($"LevelSequence: scene '{path}' must be saved and enabled in Build Settings.", this);
-            return;
+            return false;
         }
 
         _loading = true;
         SceneManager.LoadSceneAsync(path, LoadSceneMode.Single);
+        return true;
     }
 }
