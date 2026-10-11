@@ -21,6 +21,10 @@ public sealed class PlayerIntegrationTests
     public IEnumerator SetUp()
     {
         EditorSceneManager.OpenScene(ScenePath);
+        var savedHud = Object.FindObjectsByType<MonoBehaviour>()
+            .Single(component => component.GetType().Name == "PresentationBinder");
+        Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(savedHud.gameObject),
+            Is.EqualTo("Assets/Game/Presentation/Prefabs/HUD.prefab"));
         var savedMotor = Object.FindObjectsByType<MonoBehaviour>()
             .Single(component => component.GetType().FullName == "FunFlow.Player.PlayerMotor");
         Assert.That(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(savedMotor.gameObject),
@@ -105,8 +109,12 @@ public sealed class PlayerIntegrationTests
             if (attempt == 2) _session.ReachExit();
             var hiddenObject = GameObject.Find("GameRoot/MuseumLevel/loot (1)");
             hiddenObject.SetActive(false);
-            var alarm = GameObject.Find("GameRoot/MuseumLevel/AlarmZone");
-            alarm.SendMessage("OnTriggerEnter", _body.GetComponent<Collider>());
+            var alarm = GameObject.Find("GameRoot/MuseumLevel").transform
+                .Find("Generated_Track/AlarmZone").gameObject;
+            var alarmComponent = alarm.GetComponents<MonoBehaviour>().Single(c => c.GetType().Name == "AlarmTrap");
+            alarmComponent.GetType().GetMethod("OnTriggerEnter",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .Invoke(alarmComponent, new object[] { _body.GetComponent<Collider>() });
 
             var oldSession = _session;
             var oldBody = _body;
@@ -148,7 +156,8 @@ public sealed class PlayerIntegrationTests
             Assert.That(Source(_session, "_lootSource"), Is.SameAs(bag));
             Assert.That(Source(_motor, "lootSource"), Is.SameAs(bag));
             Assert.That(GameObject.Find("GameRoot/MuseumLevel/loot (1)"), Is.Not.Null);
-            var resetAlarm = GameObject.Find("GameRoot/MuseumLevel/AlarmZone")
+            var resetAlarm = GameObject.Find("GameRoot/MuseumLevel").transform
+                .Find("Generated_Track/AlarmZone").gameObject
                 .GetComponents<MonoBehaviour>().Single(component => component.GetType().Name == "AlarmTrap");
             Assert.That(resetAlarm.GetType().GetField("_isUsed",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
@@ -320,6 +329,121 @@ public sealed class PlayerIntegrationTests
         Assert.That(Launch(Vector3.right), Is.False);
     }
 
+    [UnityTest]
+    public IEnumerator HudButtons_ThreeRestartsKeepSourcesScoreAndResultInSync()
+    {
+        string Text(Object component) => (string)component.GetType().GetProperty("text").GetValue(component);
+        MonoBehaviour Component(string name) => Object.FindObjectsByType<MonoBehaviour>()
+            .Single(c => c.GetType().Name == name);
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            yield return null;
+            var binder = Component("PresentationBinder");
+            Assert.That(Source(binder, "runSessionSource"), Is.SameAs(_session));
+            Assert.That(Source(binder, "lootSource"), Is.SameAs(LootSource));
+            Assert.That(Source(binder, "playerSource"), Is.SameAs(_motor));
+            Assert.That(Object.FindObjectsByType<UnityEngine.EventSystems.EventSystem>().Length, Is.EqualTo(1));
+            var handlers = (System.Delegate)typeof(RunSession).GetField("Finished",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(_session);
+            Assert.That(handlers.GetInvocationList().Length, Is.EqualTo(1));
+            var screens = Component("HudScreens");
+            var button = (UnityEngine.UI.Button)Source(screens, "primaryButton");
+            button.onClick.Invoke();
+            button.onClick.Invoke();
+            Assert.That(_session.State, Is.EqualTo(RunState.Playing));
+            SetValue(750);
+            yield return new WaitForSecondsRealtime(0.8f);
+            Assert.That(Text(Source(Component("HudView"), "lootValue")), Does.Contain("750"));
+            _session.ReachExit();
+            Assert.That(Text(Source(screens, "titleText")), Does.Contain("750"));
+            SetValue(125); // Late Loot notifications must not rewrite the result snapshot.
+            Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(750));
+            Assert.That(Text(Source(screens, "titleText")), Does.Contain("750"));
+            var previous = _session;
+            button.onClick.Invoke();
+            button.onClick.Invoke();
+            float deadline = Time.realtimeSinceStartup + 10f;
+            while (previous != null && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.That(previous == null, Is.True);
+            yield return null;
+            _session = Object.FindAnyObjectByType<RunSession>();
+            _motor = (MonoBehaviour)Source(_session, "_playerSource");
+            _player = (IPlayerControl)_motor;
+            _body = _motor.GetComponent<Rigidbody>();
+            _camera = Object.FindAnyObjectByType<CorridorCamera>();
+            Assert.That(_session.State, Is.EqualTo(RunState.Waiting));
+            Assert.That(_session.Result, Is.Null);
+            Assert.That(Loot.CurrentValue, Is.Zero);
+            Assert.That(Text(Source(Component("HudView"), "lootValue")), Does.StartWith("0"));
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator HudMouseClick_StartsThroughInputSystemUiModule()
+    {
+        yield return null;
+        var button = Object.FindAnyObjectByType<UnityEngine.UI.Button>();
+        Canvas.ForceUpdateCanvases();
+        var rect = (RectTransform)button.transform;
+        Vector2 point = rect.TransformPoint(rect.rect.center);
+        var mouse = InputSystem.AddDevice<Mouse>();
+        try
+        {
+            foreach (bool down in new[] { false, true, false })
+            {
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = point, buttons = (ushort)(down ? 1 : 0) });
+                InputSystem.Update();
+                yield return null;
+            }
+            Assert.That(_session.State, Is.EqualTo(RunState.Playing));
+            Assert.That(_player.IsMoving, Is.False);
+            Assert.That(_body.linearVelocity.sqrMagnitude, Is.Zero);
+        }
+        finally { InputSystem.RemoveDevice(mouse); }
+    }
+
+    [UnityTest]
+    public IEnumerator HudPointerGesture_CannotAimOrLaunchAfterLeavingUi()
+    {
+        yield return null;
+        var guard = Object.FindAnyObjectByType<UiLaunchGuard>();
+        var input = (MonoBehaviour)Source(guard, "_launchInput");
+        var screens = Object.FindObjectsByType<MonoBehaviour>().Single(c => c.GetType().Name == "HudScreens");
+        var button = (UnityEngine.UI.Button)Source(screens, "primaryButton");
+        Canvas.ForceUpdateCanvases();
+        Vector2 ui = ((RectTransform)button.transform).TransformPoint(((RectTransform)button.transform).rect.center);
+        var mouse = InputSystem.AddDevice<Mouse>();
+        void Pointer(Vector2 position, bool down)
+        {
+            InputSystem.QueueStateEvent(mouse, new MouseState { position = position, buttons = (ushort)(down ? 1 : 0) });
+            InputSystem.Update();
+            guard.SendMessage("Update");
+            if (input.enabled) input.SendMessage("Update");
+        }
+        try
+        {
+            Pointer(ui, true);
+            Assert.That(input.enabled, Is.False);
+            button.onClick.Invoke(); // Start while the mouse is still held on UI.
+            Vector2 ball = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position);
+            Vector2 pull = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position - Vector3.right * 3f);
+            Pointer(ball, true);
+            Assert.That(input.enabled, Is.False);
+            Pointer(pull, false);
+            Assert.That(_player.IsMoving, Is.False);
+            Pointer(ball, false);
+            Assert.That(input.enabled, Is.True);
+            Pointer(ball, true);
+            Assert.That((bool)input.GetType().GetProperty("IsAiming").GetValue(input), Is.True);
+            Pointer(pull, true);
+            Assert.That(input.enabled, Is.True, "The gameplay drag must remain outside UI.");
+            Assert.That((bool)input.GetType().GetProperty("HasLaunchableAim").GetValue(input), Is.True);
+            Pointer(pull, false);
+            Assert.That(_player.IsMoving, Is.True, "Normal gameplay must still launch.");
+        }
+        finally { InputSystem.RemoveDevice(mouse); }
+    }
+
     [Test]
     public void MouseAim_IsBlockedBeforeStartAndCancelledOnResult()
     {
@@ -334,7 +458,8 @@ public sealed class PlayerIntegrationTests
             Vector2 screen = _camera.GetComponent<Camera>().WorldToScreenPoint(world);
             InputSystem.QueueStateEvent(mouse, new MouseState { position = screen, buttons = (ushort)(pressed ? 1 : 0) });
             InputSystem.Update();
-            input.SendMessage("Update");
+            Object.FindAnyObjectByType<UiLaunchGuard>().SendMessage("Update");
+            if (input.enabled) input.SendMessage("Update");
         }
         try
         {

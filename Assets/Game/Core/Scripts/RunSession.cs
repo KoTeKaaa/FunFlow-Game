@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public sealed class RunSession : MonoBehaviour
+public sealed class RunSession : MonoBehaviour, IRunSession
 {
     [SerializeField] private MonoBehaviour _playerSource;
     [SerializeField] private MonoBehaviour _lootSource;
@@ -12,9 +12,18 @@ public sealed class RunSession : MonoBehaviour
     private bool _restarting;
 
     public RunState State => _run.State;
+    public bool HasAlarmTriggered => _run.HasAlarmTriggered;
+    // The short cycle has no alarm timer yet (task 14).
+    public float RemainingTime => 0f;
     public RunResult? Result => _run.Result;
+    public event Action<float> RemainingTimeChanged { add { } remove { } }
     public event Action<RunState> StateChanged;
     public event Action<RunResult> Finished;
+
+    public void TriggerAlarm()
+    {
+        throw new NotSupportedException("RunSession: alarm timer integration is pending (task 14).");
+    }
 
     private void OnEnable()
     {
