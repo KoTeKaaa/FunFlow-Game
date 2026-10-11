@@ -1,0 +1,30 @@
+# Keep rules scoped to the Unity project and new team documentation.
+# No custom merge driver is assumed to be installed on teammates' machines.
+Assets/** text=auto
+Assets/**/*.cs text eol=lf
+Assets/**/*.meta text eol=lf
+Assets/**/*.unity text eol=lf
+Assets/**/*.prefab text eol=lf
+Assets/**/*.asset text eol=lf
+Assets/**/*.mat text eol=lf
+Assets/**/*.asmdef text eol=lf
+Assets/**/*.shader text eol=lf
+Assets/**/*.png binary
+Assets/**/*.jpg binary
+Assets/**/*.jpeg binary
+Assets/**/*.psd binary
+Assets/**/*.fbx binary
+Assets/**/*.blend binary
+Assets/**/*.wav binary
+Assets/**/*.ogg binary
+Assets/**/*.mp3 binary
+Assets/**/*.ttf binary
+Assets/**/*.otf binary
+Packages/** text eol=lf
+ProjectSettings/** text eol=lf
+docs/** text eol=lf
+.github/** text eol=lf
+README.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf

@@ -109,3 +109,8 @@ InitTestScene*.unity*
 /[Aa]ssets/[Ss]ceneDependencyCache*
 
 .vscode/
+
+# Local editor and OS files.
+/.idea/
+.DS_Store
+Thumbs.db
