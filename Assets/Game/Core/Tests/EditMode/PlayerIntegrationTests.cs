@@ -84,7 +84,7 @@ public sealed class PlayerIntegrationTests
         _session.SendMessage("Update");
         var text = Source(Module("HudView").Single(), "alarmValue");
         Assert.That((string)text.GetType().GetProperty("text").GetValue(text),
-            Is.EqualTo($"{Mathf.CeilToInt(_session.RemainingTime)} сек."));
+            Is.EqualTo("00:07"));
         typeof(RunSession).GetField("_alarmDeadline", System.Reflection.BindingFlags.Instance
             | System.Reflection.BindingFlags.NonPublic).SetValue(_session, Time.timeAsDouble - 1d);
         _session.SendMessage("Update");
@@ -150,7 +150,7 @@ public sealed class PlayerIntegrationTests
         Assert.That(Loot.CurrentValue, Is.EqualTo(320));
         Assert.That((bool)Field(Module("PresentationController").Single(), "alarmAnnounced"), Is.True);
         var alarmText = Source(Module("HudView").Single(), "alarmValue");
-        Assert.That((string)alarmText.GetType().GetProperty("text").GetValue(alarmText), Does.Contain("сек."));
+        Assert.That((string)alarmText.GetType().GetProperty("text").GetValue(alarmText), Does.Match(@"^\d{2,}:[0-5]\d$"));
     }
 
     [UnityTest]
@@ -500,7 +500,7 @@ public sealed class PlayerIntegrationTests
             _session.TriggerAlarm();
             _session.TriggerAlarm();
             Assert.That((bool)Field(Component("PresentationController"), "alarmAnnounced"), Is.True);
-            Assert.That(Text(Source(Component("HudView"), "alarmValue")), Does.Contain("сек."));
+            Assert.That(Text(Source(Component("HudView"), "alarmValue")), Does.Match(@"^\d{2,}:[0-5]\d$"));
             SetValue(750);
             yield return new WaitForSecondsRealtime(0.8f);
             Assert.That(Text(Source(Component("HudView"), "lootValue")), Does.Contain("750"));
