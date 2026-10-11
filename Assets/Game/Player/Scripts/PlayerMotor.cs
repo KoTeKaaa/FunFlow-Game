@@ -44,11 +44,17 @@ namespace FunFlow.Player
 
         public float Deceleration => baseDeceleration * (1f + decelerationBurdenFactor * burden);
 
-        /// <summary>Длина скольжения по полу без препятствий: v² / (2a).</summary>
+        /// <summary>
+        /// Длина скольжения по полу без препятствий — по тем же шагам, что FixedUpdate:
+        /// каждый шаг скорость падает на a·dt, затем тело проходит v·dt; при v ≤ stopSpeed — стоп.
+        /// Это v²/(2a) без ошибки дискретизации.
+        /// </summary>
         public float SlideDistance(float power)
         {
-            float v = LaunchSpeed(power);
-            return v * v / (2f * Deceleration);
+            float v0 = LaunchSpeed(power);
+            float dv = Deceleration * Time.fixedDeltaTime;
+            int steps = Mathf.Max(0, Mathf.CeilToInt((v0 - stopSpeed) / dv) - 1);
+            return Time.fixedDeltaTime * (steps * v0 - dv * steps * (steps + 1) * 0.5f);
         }
 
         /// <summary>Запуск назад или строго вбок отменяется, а не поворачивается.</summary>
