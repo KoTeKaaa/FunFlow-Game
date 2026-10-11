@@ -572,32 +572,31 @@ public sealed class PlayerIntegrationTests
         Canvas.ForceUpdateCanvases();
         Vector2 ui = ((RectTransform)button.transform).TransformPoint(((RectTransform)button.transform).rect.center);
         var mouse = InputSystem.AddDevice<Mouse>();
-        void Pointer(Vector2 position, bool down)
+        IEnumerator Pointer(Vector2 position, bool down)
         {
             InputSystem.QueueStateEvent(mouse, new MouseState { position = position, buttons = (ushort)(down ? 1 : 0) });
             InputSystem.Update();
-            guard.SendMessage("Update");
-            if (input.enabled) input.SendMessage("Update");
+            yield return null; // Let the UI guard and input run in their actual frame order.
         }
         try
         {
-            Pointer(ui, true);
+            yield return Pointer(ui, true);
             Assert.That(input.enabled, Is.False);
             button.onClick.Invoke(); // Start while the mouse is still held on UI.
             Vector2 ball = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position);
             Vector2 pull = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position - Vector3.right * 3f);
-            Pointer(ball, true);
+            yield return Pointer(ball, true);
             Assert.That(input.enabled, Is.False);
-            Pointer(pull, false);
+            yield return Pointer(pull, false);
             Assert.That(_player.IsMoving, Is.False);
-            Pointer(ball, false);
+            yield return Pointer(ball, false);
             Assert.That(input.enabled, Is.True);
-            Pointer(ball, true);
+            yield return Pointer(ball, true);
             Assert.That((bool)input.GetType().GetProperty("IsAiming").GetValue(input), Is.True);
-            Pointer(pull, true);
+            yield return Pointer(pull, true);
             Assert.That(input.enabled, Is.True, "The gameplay drag must remain outside UI.");
             Assert.That((bool)input.GetType().GetProperty("HasLaunchableAim").GetValue(input), Is.True);
-            Pointer(pull, false);
+            yield return Pointer(pull, false);
             Assert.That(_player.IsMoving, Is.True, "Normal gameplay must still launch.");
         }
         finally { InputSystem.RemoveDevice(mouse); }
