@@ -26,6 +26,8 @@ namespace FunFlow.Player
         /// <summary>Направление запуска с учётом ограничения угла.</summary>
         public Vector3 AimDirection => motor.ClampDirection(pull);
         public float AimPower => Mathf.Clamp01(pull.magnitude / maxPullDistance);
+        /// <summary>Отпускание сейчас даст запуск: оттянуто достаточно и не назад.</summary>
+        public bool HasLaunchableAim => isAiming && pull.magnitude >= minPullDistance && motor.IsForward(pull);
 
         private void OnDisable()
         {
@@ -68,9 +70,9 @@ namespace FunFlow.Player
 
             if (released)
             {
-                isAiming = false;
-                if (pull.magnitude >= minPullDistance)
+                if (HasLaunchableAim)
                     motor.TryLaunch(pull, AimPower);
+                isAiming = false;
             }
         }
 
