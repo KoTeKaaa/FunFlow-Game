@@ -1,0 +1,10 @@
+{
+    "name": "Game.Core.EditModeTests",
+    "references": ["Game.Core"],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ]
+}
