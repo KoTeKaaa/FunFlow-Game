@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public sealed class RunSession : MonoBehaviour
 {
@@ -8,6 +9,7 @@ public sealed class RunSession : MonoBehaviour
     private readonly RunStateMachine _run = new RunStateMachine();
     private IPlayerControl _player;
     private ILootInventory _loot;
+    private bool _restarting;
 
     public RunState State => _run.State;
     public RunResult? Result => _run.Result;
@@ -17,13 +19,51 @@ public sealed class RunSession : MonoBehaviour
     private void OnEnable()
     {
         if (ValidateSources())
-            _player.SetControlEnabled(State == RunState.Playing || State == RunState.Alarm);
+            _player.SetControlEnabled(!_restarting && (State == RunState.Playing || State == RunState.Alarm));
     }
 
     private void OnDisable()
     {
         if (_playerSource != null && _playerSource is IPlayerControl player)
             player.SetControlEnabled(false);
+    }
+
+    private void OnDestroy()
+    {
+        StateChanged = null;
+        Finished = null;
+        _player = null;
+        _loot = null;
+    }
+
+    [ContextMenu("Test Run/Restart")]
+    public void RestartRun()
+    {
+        if (!Application.isPlaying || !isActiveAndEnabled || _restarting)
+            return;
+
+        var scene = gameObject.scene;
+        if (!scene.IsValid() || string.IsNullOrEmpty(scene.path)
+            || !Application.CanStreamedLevelBeLoaded(scene.path))
+        {
+            Debug.LogError("RunSession: Restart requires a saved scene enabled in Build Settings.", this);
+            return;
+        }
+
+        _restarting = true;
+        if (_playerSource != null && _playerSource is IPlayerControl player)
+            player.SetControlEnabled(false);
+        try
+        {
+            SceneManager.LoadSceneAsync(scene.path, LoadSceneMode.Single);
+        }
+        catch (Exception exception)
+        {
+            _restarting = false;
+            if (_playerSource != null && _playerSource is IPlayerControl currentPlayer)
+                currentPlayer.SetControlEnabled(State == RunState.Playing || State == RunState.Alarm);
+            Debug.LogError($"RunSession: scene reload failed: {exception.Message}", this);
+        }
     }
 
     private bool ValidateSources()
@@ -42,7 +82,7 @@ public sealed class RunSession : MonoBehaviour
     [ContextMenu("Test Run/Start")]
     public void StartRun()
     {
-        if (!isActiveAndEnabled || !ValidateSources() || !_run.StartRun())
+        if (!isActiveAndEnabled || _restarting || !ValidateSources() || !_run.StartRun())
             return;
 
         _player.SetControlEnabled(true);
@@ -52,7 +92,7 @@ public sealed class RunSession : MonoBehaviour
     [ContextMenu("Test Run/Reach Exit")]
     public void ReachExit()
     {
-        if (!isActiveAndEnabled || (State != RunState.Playing && State != RunState.Alarm)
+        if (!isActiveAndEnabled || _restarting || (State != RunState.Playing && State != RunState.Alarm)
             || !ValidateSources())
             return;
 
