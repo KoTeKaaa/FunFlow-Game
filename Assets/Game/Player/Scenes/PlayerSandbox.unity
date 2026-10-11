@@ -148,9 +148,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36f5048331c78e746a6773cb775b4a87, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FunFlow.Player.PlayerSandboxStub
-  motor: {fileID: 925724770}
-  debugBurden: 0
+  playerControlSource: {fileID: 925724770}
+  config: {fileID: 11400000, guid: c92a21b2324d2d3b993b271213acfba4, type: 2}
+  debugWeight: 0
   controlEnabled: 1
+  launchCount: 0
+  isMoving: 0
 --- !u!4 &123006363
 Transform:
   m_ObjectHideFlags: 0
@@ -653,6 +656,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5617821729761158231, guid: 774bb0748292936409eecc5c4453e9b2, type: 3}
+      propertyPath: lootSource
+      value: 
+      objectReference: {fileID: 123006362}
     - target: {fileID: 8317757627764204738, guid: 774bb0748292936409eecc5c4453e9b2, type: 3}
       propertyPath: m_Name
       value: Player
