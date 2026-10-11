@@ -66,6 +66,61 @@ public sealed class RunSessionTests
         Assert.That(finishEvents, Is.EqualTo(1));
     }
 
+    [UnityTest]
+    public IEnumerator ExitTrigger_PhysicalContactFinishesOnceAndIgnoresOtherBodies()
+    {
+        _root.SetActive(true);
+        _session.StartRun();
+        _probe.SetTestValue(75);
+        int finishes = 0;
+        _session.Finished += result => finishes++;
+
+        var player = new GameObject("Exit test player");
+        player.transform.SetParent(_root.transform);
+        player.layer = 8;
+        var body = player.AddComponent<Rigidbody>();
+        body.useGravity = false;
+        player.AddComponent<SphereCollider>();
+        var exit = new GameObject("Exit test trigger");
+        exit.transform.SetParent(_root.transform);
+        exit.SetActive(false);
+        exit.layer = 15;
+        exit.transform.position = new Vector3(3, 0, 0);
+        exit.AddComponent<BoxCollider>().isTrigger = true;
+        var trigger = exit.AddComponent<RunExitTrigger>();
+        var links = new SerializedObject(trigger);
+        links.FindProperty("_session").objectReferenceValue = _session;
+        links.FindProperty("_player").objectReferenceValue = body;
+        links.ApplyModifiedPropertiesWithoutUndo();
+        exit.SetActive(true);
+
+        var stranger = new GameObject("Other body on Player layer");
+        stranger.transform.SetParent(_root.transform);
+        stranger.layer = 8;
+        stranger.transform.position = exit.transform.position;
+        stranger.AddComponent<Rigidbody>().useGravity = false;
+        stranger.AddComponent<SphereCollider>();
+        yield return new WaitForFixedUpdate();
+        yield return new WaitForFixedUpdate();
+        Assert.That(_session.State, Is.EqualTo(RunState.Playing));
+        Object.DestroyImmediate(stranger);
+
+        for (int contact = 0; contact < 2; contact++)
+        {
+            body.position = exit.transform.position;
+            yield return new WaitForFixedUpdate();
+            yield return new WaitForFixedUpdate();
+            body.position = Vector3.zero;
+            yield return new WaitForFixedUpdate();
+            yield return new WaitForFixedUpdate();
+            _probe.SetTestValue(100);
+        }
+        Assert.That(_session.State, Is.EqualTo(RunState.Won));
+        Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(75));
+        Assert.That(finishes, Is.EqualTo(1));
+        Assert.That(_probe.ControlEnabled, Is.False);
+    }
+
     [TestCase("_playerSource", false)]
     [TestCase("_lootSource", false)]
     [TestCase("_playerSource", true)]
