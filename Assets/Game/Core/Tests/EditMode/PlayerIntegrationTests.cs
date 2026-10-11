@@ -109,8 +109,12 @@ public sealed class PlayerIntegrationTests
             if (attempt == 2) _session.ReachExit();
             var hiddenObject = GameObject.Find("GameRoot/MuseumLevel/loot (1)");
             hiddenObject.SetActive(false);
-            var alarm = GameObject.Find("GameRoot/MuseumLevel/AlarmZone");
-            alarm.SendMessage("OnTriggerEnter", _body.GetComponent<Collider>());
+            var alarm = GameObject.Find("GameRoot/MuseumLevel").transform
+                .Find("Generated_Track/AlarmZone").gameObject;
+            var alarmComponent = alarm.GetComponents<MonoBehaviour>().Single(c => c.GetType().Name == "AlarmTrap");
+            alarmComponent.GetType().GetMethod("OnTriggerEnter",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .Invoke(alarmComponent, new object[] { _body.GetComponent<Collider>() });
 
             var oldSession = _session;
             var oldBody = _body;
@@ -152,7 +156,8 @@ public sealed class PlayerIntegrationTests
             Assert.That(Source(_session, "_lootSource"), Is.SameAs(bag));
             Assert.That(Source(_motor, "lootSource"), Is.SameAs(bag));
             Assert.That(GameObject.Find("GameRoot/MuseumLevel/loot (1)"), Is.Not.Null);
-            var resetAlarm = GameObject.Find("GameRoot/MuseumLevel/AlarmZone")
+            var resetAlarm = GameObject.Find("GameRoot/MuseumLevel").transform
+                .Find("Generated_Track/AlarmZone").gameObject
                 .GetComponents<MonoBehaviour>().Single(component => component.GetType().Name == "AlarmTrap");
             Assert.That(resetAlarm.GetType().GetField("_isUsed",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
@@ -421,15 +426,19 @@ public sealed class PlayerIntegrationTests
             Assert.That(input.enabled, Is.False);
             button.onClick.Invoke(); // Start while the mouse is still held on UI.
             Vector2 ball = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position);
+            Vector2 pull = _camera.GetComponent<Camera>().WorldToScreenPoint(_motor.transform.position - Vector3.right * 3f);
             Pointer(ball, true);
             Assert.That(input.enabled, Is.False);
-            Pointer(ball - Vector2.right * 200f, false);
+            Pointer(pull, false);
             Assert.That(_player.IsMoving, Is.False);
             Pointer(ball, false);
             Assert.That(input.enabled, Is.True);
             Pointer(ball, true);
             Assert.That((bool)input.GetType().GetProperty("IsAiming").GetValue(input), Is.True);
-            Pointer(ball - Vector2.right * 200f, false);
+            Pointer(pull, true);
+            Assert.That(input.enabled, Is.True, "The gameplay drag must remain outside UI.");
+            Assert.That((bool)input.GetType().GetProperty("HasLaunchableAim").GetValue(input), Is.True);
+            Pointer(pull, false);
             Assert.That(_player.IsMoving, Is.True, "Normal gameplay must still launch.");
         }
         finally { InputSystem.RemoveDevice(mouse); }
