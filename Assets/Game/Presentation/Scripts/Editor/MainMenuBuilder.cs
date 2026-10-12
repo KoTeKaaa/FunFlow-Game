@@ -39,7 +39,7 @@ namespace FunFlow.Presentation.EditorTools
                 var entries = data.FindProperty("levels");
                 entries.arraySize = 1;
                 var entry = entries.GetArrayElementAtIndex(0);
-                entry.FindPropertyRelative("Title").stringValue = "Маршрут 1";
+                entry.FindPropertyRelative("Title").stringValue = "Золотой след";
                 entry.FindPropertyRelative("Description").stringValue = "Собери добычу и доберись до выхода.";
                 entry.FindPropertyRelative("ScenePath").stringValue = "Assets/Game/Core/Scenes/Game.unity";
                 entry.FindPropertyRelative("Artwork").objectReferenceValue = background;
@@ -79,10 +79,10 @@ namespace FunFlow.Presentation.EditorTools
             var home = Panel("Home", ui.transform, false);
             var levels = Panel("Levels", ui.transform, true);
             var settings = Panel("Settings", ui.transform, true);
-            Label("Eyebrow", home.transform, "ПЛАН ОГРАБЛЕНИЯ", 20, HudStyle.Gold, new Vector2(112, 194), new Vector2(640, 40));
+            Label("Eyebrow", home.transform, "Tail Thief", 28, HudStyle.Gold, new Vector2(112, 194), new Vector2(640, 40), true);
             Label("Title", home.transform, "Хватай добычу.\nУспей к выходу!", 72, HudStyle.Text, new Vector2(108, 246), new Vector2(720, 190), true);
             Label("Subtitle", home.transform, "Разные маршруты. Много соблазнов.", 26, HudStyle.Body, new Vector2(112, 444), new Vector2(670, 50));
-            var play = Button("Play", home.transform, "Играть  →", new Vector2(112, 548), new Vector2(430, 88), true);
+            var play = Button("Play", home.transform, "Играть", new Vector2(112, 548), new Vector2(430, 88), true);
             var options = Button("Settings", home.transform, "Настройки", new Vector2(112, 652), new Vector2(430, 80), false);
             var quit = Button("Quit", home.transform, "Выйти из игры", new Vector2(112, 748), new Vector2(430, 80), false);
             Label("Footer", home.transform, "МЫШЬ — ВЫБОР  •  ENTER — ПОДТВЕРДИТЬ", 18, HudStyle.Muted, new Vector2(112, 968), new Vector2(800, 32));
@@ -132,7 +132,7 @@ namespace FunFlow.Presentation.EditorTools
             ribbon.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
             var template = Card(content.transform);
             template.gameObject.SetActive(false);
-            var backLevels = Button("Back", levels.transform, "← Назад", new Vector2(96, 914), new Vector2(290, 72), false);
+            var backLevels = Button("Back", levels.transform, "Назад", new Vector2(96, 914), new Vector2(290, 72), false);
             var settingsCard = Go("SettingsCard", settings.transform);
             Place(settingsCard.transform, new Vector2(440, 172), new Vector2(1040, 724));
             var settingsRect = (RectTransform)settingsCard.transform;
@@ -142,8 +142,8 @@ namespace FunFlow.Presentation.EditorTools
             Label("Title", settingsCard.transform, "Настройки звука", 48, HudStyle.Text, new Vector2(56, 48), new Vector2(910, 68), true);
             Label("Caption", settingsCard.transform, "Настрой громкость под себя", 24, HudStyle.Body, new Vector2(58, 128), new Vector2(900, 40));
             var effects = VolumeRow(settingsCard.transform, "Effects", "Звуки", "Запуск, добыча, ловушки и интерфейс", 224, out var effectsValue);
-            var music = VolumeRow(settingsCard.transform, "Music", "Музыка", "Пока без музыки — настройка сохранится", 404, out var musicValue);
-            var backSettings = Button("Back", settingsCard.transform, "← Готово", new Vector2(58, 614), new Vector2(300, 72), true);
+            var music = VolumeRow(settingsCard.transform, "Music", "Музыка", "Громкость музыки в меню и во время игры", 404, out var musicValue);
+            var backSettings = Button("Back", settingsCard.transform, "Готово", new Vector2(58, 614), new Vector2(300, 72), true);
             Wire(controller, "catalog", AssetDatabase.LoadAssetAtPath<LevelCatalog>(UiPath + "LevelCatalog.asset")); Wire(controller, "menuUi", ui);
             Wire(controller, "home", home); Wire(controller, "levels", levels); Wire(controller, "settings", settings);
             Wire(controller, "playButton", play); Wire(controller, "settingsButton", options); Wire(controller, "quitButton", quit);
@@ -203,6 +203,7 @@ namespace FunFlow.Presentation.EditorTools
             var colors = button.colors; colors.highlightedColor = new Color(1, 0.9f, 0.75f); colors.selectedColor = colors.highlightedColor; colors.pressedColor = new Color(0.7f, 0.6f, 0.48f); button.colors = colors;
             var label = Label("Label", go.transform, value, 28, primary ? HudStyle.Dark : HudStyle.Text, Vector2.zero, bounds, true);
             Stretch(label.transform); label.alignment = TextAlignmentOptions.Center;
+            ButtonLabels.Set(label, value);
             go.AddComponent<MenuButtonFeedback>();
             return button;
         }
@@ -215,7 +216,7 @@ namespace FunFlow.Presentation.EditorTools
             var thumb = Go("Thumbnail", button.transform); Place(thumb.transform, new Vector2(24, 64), new Vector2(292, 160)); thumb.AddComponent<Image>(); thumb.AddComponent<Mask>().showMaskGraphic = false;
             var art = Go("Artwork", thumb.transform); Stretch(art.transform); var image = Image(art, Color.white, false); image.sprite = background;
             var aspect = art.AddComponent<AspectRatioFitter>(); aspect.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent; aspect.aspectRatio = background.rect.width / background.rect.height;
-            var title = Label("Title", button.transform, "", 34, HudStyle.Text, new Vector2(24, 246), new Vector2(292, 48), true);
+            var title = Label("Title", button.transform, "", 32, HudStyle.Text, new Vector2(24, 246), new Vector2(292, 48), true);
             var description = Label("Description", button.transform, "", 22, HudStyle.Body, new Vector2(24, 304), new Vector2(292, 64));
             var action = Label("Action", button.transform, "", 24, HudStyle.Gold, new Vector2(24, 388), new Vector2(292, 40), true);
             var view = button.gameObject.AddComponent<LevelCardView>();

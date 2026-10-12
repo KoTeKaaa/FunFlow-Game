@@ -23,6 +23,7 @@ namespace FunFlow.Presentation
         [SerializeField] private CanvasGroup overlay;
         [SerializeField] private Button levelButton;
         [SerializeField] private TMP_Text levelButtonLabel;
+        [SerializeField] private Button menuButton;
         [SerializeField] private TMP_Text tagText;
         [SerializeField] private TMP_Text hintText;
         [SerializeField] private TMP_Text primaryLabel;
@@ -53,11 +54,13 @@ namespace FunFlow.Presentation
                 return;
             }
             levelButton.onClick.AddListener(Submit);
+            if (menuButton != null) menuButton.onClick.AddListener(ReturnToMenu);
         }
 
         private void OnDisable()
         {
             if (levelButton != null) levelButton.onClick.RemoveListener(Submit);
+            if (menuButton != null) menuButton.onClick.RemoveListener(ReturnToMenu);
             sequence = null;
             session = null;
         }
@@ -74,6 +77,8 @@ namespace FunFlow.Presentation
         {
             bool won = screens.IsResultShown && session.State == RunState.Won;
             SetActive(levelButton.gameObject, won && !requested);
+            if (menuButton != null)
+                SetActive(menuButton.gameObject, screens.IsResultShown && !requested && (!won || sequence.HasNextLevel));
             if (!screens.IsVisible || sequence.LevelCount < 1) return;
 
             string level = $"Уровень {sequence.LevelNumber} из {sequence.LevelCount}";
@@ -92,7 +97,7 @@ namespace FunFlow.Presentation
             // HudScreens keeps the result of this attempt; earlier levels are independent.
             SetText(tagText, $"{level} пройден".ToUpperInvariant());
             SetText(primaryLabel, "Переиграть уровень");
-            SetText(levelButtonLabel, sequence.HasNextLevel ? "Следующий уровень →" : "Выход в главное меню");
+            SetText(levelButtonLabel, sequence.HasNextLevel ? "Следующий уровень" : "Выход в главное меню");
             SetText(hintText, sequence.HasNextLevel
                 ? "N — следующий уровень · R — переиграть"
                 : "N — главное меню · R — переиграть уровень");
@@ -110,6 +115,15 @@ namespace FunFlow.Presentation
             screens.Hide(); // R/Enter больше не отправят Restart поверх загрузки уровня
             if (sequence.HasNextLevel) sequence.LoadNextLevel();
             else sequence.ReturnToMainMenu();
+        }
+
+        public void ReturnToMenu()
+        {
+            if (requested || !screens.IsResultShown || (overlay != null && !overlay.interactable)) return;
+            requested = true;
+            if (overlay != null) overlay.interactable = false;
+            screens.Hide();
+            sequence.ReturnToMainMenu();
         }
 
         private static void SetActive(GameObject target, bool active)

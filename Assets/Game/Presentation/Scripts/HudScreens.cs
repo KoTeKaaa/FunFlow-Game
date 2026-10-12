@@ -15,6 +15,7 @@ namespace FunFlow.Presentation
         [SerializeField] private TMP_Text tagText;
         [SerializeField] private TMP_Text titleText;
         [SerializeField] private TMP_Text bodyText;
+        [SerializeField] private GameObject tutorial;
         [SerializeField] private TMP_Text hintText;
         [SerializeField] private UnityEngine.UI.Button primaryButton;
         [SerializeField] private TMP_Text primaryLabel;
@@ -59,11 +60,11 @@ namespace FunFlow.Presentation
             Fill(
                 "План ограбления",
                 "Хватай добычу.\nУспей к выходу!",
-                "<sprite=3> <b>Зажми • оттяни • отпусти.</b> Дальше оттянул — сильнее запуск.\n" +
-                "<sprite=0> <b>Собирай добычу.</b> Тяжёлый мешок сокращает дальность.\n" +
-                "<sprite=1> <b>Берегись ловушек.</b> Лезвия режут мешок, красные плиты включают тревогу.\n" +
-                "<sprite=2> Выход справа. Двигайся только вперёд.",
-                "Начать →",
+                "<b>Зажми • оттяни • отпусти.</b> Дальше оттянул — сильнее запуск.\n" +
+                "<b>Собирай добычу.</b> Тяжёлый мешок сокращает дальность.\n" +
+                "<b>Берегись ловушек.</b> Лезвия режут мешок, красные плиты включают тревогу.\n" +
+                "Выход справа. Двигайся только вперёд.",
+                "Начать",
                 "Мышь — запуск · Enter — начать");
             SetMode(Mode.Start);
         }
@@ -79,7 +80,7 @@ namespace FunFlow.Presentation
                 Fill("Ограбление завершено",
                     $"Удалось унести\n<color={HudStyle.GoldHex}>{coins}.</color>",
                     alarm + StatsLine(r),
-                    "Ещё одно ограбление →",
+                    "Ещё одно ограбление",
                     "R — заново");
             }
             else
@@ -87,7 +88,7 @@ namespace FunFlow.Presentation
                 Fill("Попытка завершена",
                     "Время вышло.\nОхрана уже здесь.",
                     $"В мешке было {coins}. Попробуй другой маршрут или возьми меньше добычи." + StatsLine(r),
-                    "Попробовать снова →",
+                    "Попробовать снова",
                     "R — заново");
             }
             SetMode(Mode.Result);
@@ -118,6 +119,11 @@ namespace FunFlow.Presentation
         private void SetMode(Mode next)
         {
             mode = next;
+            if (tutorial != null)
+            {
+                tutorial.SetActive(next == Mode.Start);
+                if (bodyText != null) bodyText.gameObject.SetActive(next != Mode.Start);
+            }
             latched = false;
             bool on = next != Mode.Hidden;
             if (overlay != null)
