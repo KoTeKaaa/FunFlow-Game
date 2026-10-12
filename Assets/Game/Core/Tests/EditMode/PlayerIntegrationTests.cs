@@ -35,6 +35,11 @@ public sealed class PlayerIntegrationTests
         bool reload = !EditorSettings.enterPlayModeOptionsEnabled
             || (EditorSettings.enterPlayModeOptions & EnterPlayModeOptions.DisableDomainReload) == 0;
         yield return new EnterPlayMode(reload);
+        BindScene();
+    }
+
+    private void BindScene()
+    {
         _session = Object.FindAnyObjectByType<RunSession>();
         _motor = Object.FindObjectsByType<MonoBehaviour>()
             .Single(component => component.GetType().FullName == "FunFlow.Player.PlayerMotor");
@@ -115,7 +120,7 @@ public sealed class PlayerIntegrationTests
         var cutter = Module("CutterTrap").OrderBy(c => c.transform.position.x).First();
         Assert.That(Source(cutter, "lootSource"), Is.SameAs(LootSource));
         Assert.That(BagVisual.GetComponent<Collider>().attachedRigidbody.isKinematic, Is.True);
-        _body.position = new Vector3(cutter.transform.position.x - 2f, _body.position.y, cutter.transform.position.z);
+        _body.position = new Vector3(cutter.transform.position.x - 1f, _body.position.y, cutter.transform.position.z);
         Physics.SyncTransforms();
         Assert.That(Launch(Vector3.right, 1f), Is.True);
         float stopDeadline = Time.realtimeSinceStartup + 4f;
@@ -144,10 +149,11 @@ public sealed class PlayerIntegrationTests
         Assert.That(Launch(Vector3.right, 0.35f), Is.True);
         stopDeadline = Time.realtimeSinceStartup + 4f;
         while (_player.IsMoving && Time.realtimeSinceStartup < stopDeadline) yield return null;
-        Assert.That(Loot.CurrentValue, Is.EqualTo(320));
+        int reward = (int)showcase.GetType().GetField("rewardValue").GetValue(showcase);
+        Assert.That(Loot.CurrentValue, Is.EqualTo(reward));
         Assert.That(((GameObject)showcase.GetType().GetField("glassModel").GetValue(showcase)).activeSelf, Is.False);
         showcase.SendMessage("OnTriggerEnter", _body.GetComponent<Collider>());
-        Assert.That(Loot.CurrentValue, Is.EqualTo(320));
+        Assert.That(Loot.CurrentValue, Is.EqualTo(reward));
         Assert.That((bool)Field(Module("PresentationController").Single(), "alarmAnnounced"), Is.True);
         var alarmText = Source(Module("HudView").Single(), "alarmValue");
         Assert.That((string)alarmText.GetType().GetProperty("text").GetValue(alarmText), Does.Match(@"^\d{2,}:[0-5]\d$"));
@@ -187,10 +193,101 @@ public sealed class PlayerIntegrationTests
         if (value > 0) LootSource.GetType().GetMethod("AddValue").Invoke(LootSource, new object[] { value });
     }
 
+    [UnityTest, Explicit("Three timed full-bag attempts; opt in to this long balance benchmark.")]
+    public IEnumerator Balance_ThreeFullBagsReachExitAfterEarliestAlarmWithoutCuts()
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            if (attempt > 0)
+            {
+                var previous = _session;
+                _session.RestartRun();
+                float reloadDeadline = Time.realtimeSinceStartup + 5f;
+                while (Object.FindAnyObjectByType<RunSession>() == previous && Time.realtimeSinceStartup < reloadDeadline)
+                    yield return null;
+                BindScene();
+                Assert.That(_session, Is.Not.Null.And.Not.SameAs(previous));
+            }
+            yield return null;
+            var config = (GameConfig)Source(LootSource, "config");
+            var alarm = Module("AlarmTrap").OrderBy(c => c.transform.position.x).First();
+            var exit = Object.FindAnyObjectByType<RunExitTrigger>();
+            _session.StartRun();
+            SetValue(config.ValueAtFullWeight);
+            Assert.That((float)_motor.GetType().GetProperty("Burden").GetValue(_motor), Is.EqualTo(1f));
+            float radius = _body.GetComponent<Collider>().bounds.extents.x;
+            _body.position = new Vector3(alarm.GetComponent<Collider>().bounds.min.x - radius + 0.02f,
+                _body.position.y, -3f);
+            Physics.SyncTransforms();
+            double alarmStart = -1d;
+            _session.StateChanged += state =>
+            {
+                if (state == RunState.Alarm) alarmStart = Time.timeAsDouble;
+            };
+            int launches = 0;
+            double safetyDeadline = Time.timeAsDouble + 70d;
+            while (_session.Result == null && Time.timeAsDouble < safetyDeadline && launches < 40)
+            {
+                Assert.That(Launch(Vector3.right, 1f), Is.True);
+                launches++;
+                double stopDeadline = Time.timeAsDouble + 4d;
+                while (_player.IsMoving && _session.Result == null && Time.timeAsDouble < stopDeadline)
+                    yield return null;
+                Assert.That(_player.IsMoving && _session.Result == null, Is.False);
+                Assert.That(Loot.CurrentValue, Is.GreaterThanOrEqualTo(config.ValueAtFullWeight), "Route cut the bag.");
+                // EditMode Runner does not honour WaitForSeconds after EnterPlayMode.
+                double aimUntil = Time.timeAsDouble + 1d;
+                while (_session.Result == null && Time.timeAsDouble < aimUntil) yield return null;
+            }
+            Assert.That(alarmStart, Is.GreaterThanOrEqualTo(0d), "Physical alarm contact did not occur.");
+            Assert.That(_session.State, Is.EqualTo(RunState.Won), $"Stopped at {_body.position}; exit {exit.transform.position}.");
+            double elapsed = Time.timeAsDouble - alarmStart;
+            Debug.Log($"BALANCE full-bag run {attempt + 1}: {elapsed:F2}s, {launches} launches, value {Loot.CurrentValue}, aim 1s, fixed dt {Time.fixedDeltaTime}.");
+            Assert.That(elapsed, Is.InRange(40d, 55d), "Full bag should leave a useful margin within the alarm budget.");
+        }
+    }
+
+    [UnityTest, Explicit("Measured ordinary aiming pace; opt in to this long balance benchmark.")]
+    public IEnumerator Balance_OrdinaryLootRouteFitsTwoToFiveMinutes()
+    {
+        yield return null;
+        _session.StartRun();
+        double started = Time.timeAsDouble;
+        var config = (GameConfig)Source(LootSource, "config");
+        var route = new[] { new Vector3(10f, 0f, -2f), new Vector3(12f, 0f, -1f),
+            new Vector3(14f, 0f, 0f), new Vector3(16f, 0f, 1f), new Vector3(18f, 0f, 2f),
+            new Vector3(28f, 0f, 3.47f), new Vector3(39f, 0f, 3f), new Vector3(43f, 0f, -3f),
+            new Vector3(64f, 0f, -3f), new Vector3(101f, 0f, -3f) };
+        int waypoint = 0, launches = 0;
+        while (_session.Result == null && Time.timeAsDouble - started < 300d && launches < 80)
+        {
+            while (waypoint < route.Length - 1 && _body.position.x >= route[waypoint].x - 0.5f) waypoint++;
+            Vector3 direction = route[waypoint] - _body.position;
+            direction.y = 0f;
+            Assert.That(direction.x, Is.GreaterThan(0f));
+            float speed = config.MaxLaunchSpeed * Mathf.Lerp(1f, config.FullWeightSpeedMultiplier, Loot.NormalizedWeight);
+            float power = Mathf.Clamp01(Mathf.Sqrt(2f * config.SlideDeceleration * direction.magnitude) / speed);
+            Assert.That(Launch(direction.normalized, power), Is.True);
+            launches++;
+            double stopDeadline = Time.timeAsDouble + 5d;
+            while (_player.IsMoving && _session.Result == null && Time.timeAsDouble < stopDeadline) yield return null;
+            Assert.That(_player.IsMoving && _session.Result == null, Is.False);
+            double aimUntil = Time.timeAsDouble + (_session.HasAlarmTriggered ? 1.2d : 4.5d);
+            while (_session.Result == null && Time.timeAsDouble < aimUntil) yield return null;
+        }
+        double elapsed = Time.timeAsDouble - started;
+        Debug.Log($"BALANCE ordinary route: {elapsed:F2}s, {launches} launches, value {Loot.CurrentValue}, aim 4.5s / alarm 1.2s.");
+        Assert.That(_session.State, Is.EqualTo(RunState.Won));
+        Assert.That(_session.HasAlarmTriggered, Is.True);
+        Assert.That(Loot.CurrentValue, Is.GreaterThan(0));
+        Assert.That(elapsed, Is.InRange(120d, 300d));
+    }
+
     [Test]
     public void SavedScene_UsesRealPrefabAndSharedCameraAndLootSource()
     {
         Assert.That(Source(_session, "_playerSource"), Is.SameAs(_motor));
+        Assert.That(Source(_session, "_alarmExit"), Is.SameAs(Object.FindAnyObjectByType<RunExitTrigger>().transform));
         Assert.That(Source(_motor, "lootSource"), Is.SameAs(Source(_session, "_lootSource")));
         Assert.That(Source(_camera, "_target"), Is.SameAs(_motor.transform));
         var input = _motor.GetComponents<MonoBehaviour>()
@@ -389,8 +486,16 @@ public sealed class PlayerIntegrationTests
             Assert.That(_player.IsMoving, Is.False);
             float distance = _body.position.x - origin.x;
             Assert.That(distance, Is.GreaterThan(0.1f));
-            if (attempt == 0) emptyDistance = distance;
-            else Assert.That(distance, Is.LessThan(emptyDistance));
+            if (attempt == 0)
+            {
+                emptyDistance = distance;
+                Assert.That(distance, Is.InRange(6f, 9f), "Empty launch should not skip several encounters.");
+            }
+            else
+            {
+                Assert.That(distance, Is.LessThan(emptyDistance));
+                Assert.That(distance, Is.InRange(1.5f, 3f), "Full bag must still make useful progress.");
+            }
         }
         SetValue(config.ValueAtFullWeight * 2);
         Assert.That(loot.NormalizedWeight, Is.EqualTo(1f));
@@ -444,6 +549,7 @@ public sealed class PlayerIntegrationTests
         Assert.That(Object.FindAnyObjectByType<CoreModuleProbe>(), Is.Null);
         var items = Items;
         Assert.That(items.Length, Is.EqualTo(11));
+        int totalValue = items.Sum(item => new SerializedObject(item).FindProperty("value").intValue);
         Assert.That(items.All(item => Source(item, "inventory") == LootSource), Is.True);
         int changes = 0, finishes = 0;
         Loot.Changed += () => changes++;
@@ -467,14 +573,14 @@ public sealed class PlayerIntegrationTests
         while (_session.State == RunState.Playing && Time.realtimeSinceStartup < exitDeadline)
             yield return new WaitForFixedUpdate();
         Assert.That(_session.State, Is.EqualTo(RunState.Won));
-        Assert.That(Loot.CurrentValue, Is.EqualTo(110));
-        Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(110));
+        Assert.That(Loot.CurrentValue, Is.EqualTo(totalValue));
+        Assert.That(_session.Result.Value.FinalValue, Is.EqualTo(totalValue));
         Assert.That(items.All(item => !item.gameObject.activeSelf), Is.True);
         foreach (var item in items)
             item.GetType().GetMethod("OnTriggerEnter", System.Reflection.BindingFlags.NonPublic
                 | System.Reflection.BindingFlags.Instance).Invoke(item, new object[] { _body.GetComponent<Collider>() });
         _session.ReachExit();
-        Assert.That(Loot.CurrentValue, Is.EqualTo(110));
+        Assert.That(Loot.CurrentValue, Is.EqualTo(totalValue));
         Assert.That(changes, Is.EqualTo(11));
         Assert.That(finishes, Is.EqualTo(1));
         Assert.That(Launch(Vector3.right), Is.False);

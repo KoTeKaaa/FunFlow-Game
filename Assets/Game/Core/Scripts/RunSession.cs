@@ -7,6 +7,8 @@ public sealed class RunSession : MonoBehaviour, IRunSession, IRunPause
     [SerializeField] private MonoBehaviour _playerSource;
     [SerializeField] private MonoBehaviour _lootSource;
     [SerializeField] private GameConfig _config;
+    [Tooltip("Exit of this level; alarm budget scales with remaining distance along +X. Optional in isolated tests.")]
+    [SerializeField] private Transform _alarmExit;
     private readonly RunStateMachine _run = new RunStateMachine();
     private IPlayerControl _player;
     private ILootInventory _loot;
@@ -60,8 +62,16 @@ public sealed class RunSession : MonoBehaviour, IRunSession, IRunPause
             return;
         }
 
+        float distance = _alarmExit != null ? _alarmExit.position.x - _playerSource.transform.position.x : 0f;
+        float duration = _config.GetAlarmDurationSeconds(distance);
+        if (!float.IsFinite(duration) || duration <= 0f)
+        {
+            Debug.LogError("RunSession: alarm distance budget must be positive and finite.", this);
+            return;
+        }
+
         _run.TriggerAlarm();
-        _remainingTime = _config.AlarmDurationSeconds;
+        _remainingTime = duration;
         _alarmDeadline = Time.timeAsDouble + _remainingTime;
         StateChanged?.Invoke(State);
         RemainingTimeChanged?.Invoke(RemainingTime);

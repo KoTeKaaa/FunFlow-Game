@@ -147,7 +147,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 50
   inventory: {fileID: 1841995594}
 --- !u!1001 &248480043
 PrefabInstance:
@@ -359,7 +359,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 75
   inventory: {fileID: 1841995594}
 --- !u!1 &319420309
 GameObject:
@@ -530,7 +530,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 100
   inventory: {fileID: 1841995594}
 --- !u!1 &636313590
 GameObject:
@@ -720,6 +720,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 1841995594}
     - target: {fileID: 6449139617892866041, guid: 77923bb1cac0bce4db48c8bf5e9474f3, type: 3}
+      propertyPath: rewardValue
+      value: 200
+      objectReference: {fileID: 0}
+    - target: {fileID: 6449139617892866041, guid: 77923bb1cac0bce4db48c8bf5e9474f3, type: 3}
       propertyPath: Broken.m_PersistentCalls.m_Calls.Array.size
       value: 1
       objectReference: {fileID: 0}
@@ -763,6 +767,10 @@ PrefabInstance:
       propertyPath: lootSource
       value: 
       objectReference: {fileID: 1841995594}
+    - target: {fileID: 7572543965813142693, guid: 77923bb1cac0bce4db48c8bf5e9474f3, type: 3}
+      propertyPath: rewardValue
+      value: 300
+      objectReference: {fileID: 0}
     - target: {fileID: 7572543965813142693, guid: 77923bb1cac0bce4db48c8bf5e9474f3, type: 3}
       propertyPath: Broken.m_PersistentCalls.m_Calls.Array.size
       value: 1
@@ -899,7 +907,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 50
   inventory: {fileID: 1841995594}
 --- !u!1 &1199541897 stripped
 GameObject:
@@ -918,7 +926,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 50
   inventory: {fileID: 1841995594}
 --- !u!1 &1271987544 stripped
 GameObject:
@@ -937,7 +945,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 75
   inventory: {fileID: 1841995594}
 --- !u!1001 &1393955274
 PrefabInstance:
@@ -1053,7 +1061,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 50
   inventory: {fileID: 1841995594}
 --- !u!1 &1580558108
 GameObject:
@@ -1110,6 +1118,7 @@ MonoBehaviour:
   _playerSource: {fileID: 1393955275}
   _lootSource: {fileID: 1841995594}
   _config: {fileID: 11400000, guid: c92a21b2324d2d3b993b271213acfba4, type: 2}
+  _alarmExit: {fileID: 1069531204}
 --- !u!114 &1580558111
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1182,7 +1191,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 100
   inventory: {fileID: 1841995594}
 --- !u!1 &1669163128 stripped
 GameObject:
@@ -1201,7 +1210,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 50
   inventory: {fileID: 1841995594}
 --- !u!1 &1813300520 stripped
 GameObject:
@@ -1220,7 +1229,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 75
   inventory: {fileID: 1841995594}
 --- !u!114 &1841995594 stripped
 MonoBehaviour:
@@ -1250,7 +1259,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 100
   inventory: {fileID: 1841995594}
 --- !u!1001 &1940881521
 PrefabInstance:

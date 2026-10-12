@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: GameConfig
   m_EditorClassIdentifier: Assembly-CSharp::GameConfig
   _alarmDurationSeconds: 60
+  _alarmSecondsPerMeter: 1.2
   _valueAtFullWeight: 1000
   _maxDragPixels: 200
-  _maxLaunchSpeed: 12
-  _slideDeceleration: 3
-  _fullWeightSpeedMultiplier: 0.4
+  _maxLaunchSpeed: 7.6
+  _slideDeceleration: 4
+  _fullWeightSpeedMultiplier: 0.5
   _stopSpeed: 0.1
