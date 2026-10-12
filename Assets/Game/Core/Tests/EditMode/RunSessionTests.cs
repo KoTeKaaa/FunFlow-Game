@@ -36,6 +36,36 @@ public sealed class RunSessionTests
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
+    [TestCase(-10f, 60f)]
+    [TestCase(45f, 60f)]
+    [TestCase(100f, 120f)]
+    [TestCase(200f, 240f)]
+    public void AlarmBudget_ScalesForLongerLevels(float distance, float expected)
+    {
+        Assert.That(_config.GetAlarmDurationSeconds(distance), Is.EqualTo(expected).Within(0.001f));
+    }
+
+    [Test]
+    public void AlarmBudget_UsesRemainingDistanceOnce()
+    {
+        var exit = new GameObject("Test exit");
+        try
+        {
+            exit.transform.position = new Vector3(200f, 0f, 0f);
+            Assign("_alarmExit", exit.transform);
+            _root.transform.position = new Vector3(100f, 0f, 0f);
+            _root.SetActive(true);
+            _session.StartRun();
+            _session.TriggerAlarm();
+            Assert.That(_session.RemainingTime, Is.EqualTo(120f).Within(0.001f));
+            double deadline = Deadline;
+            exit.transform.position = new Vector3(400f, 0f, 0f);
+            _session.TriggerAlarm();
+            Assert.That(Deadline, Is.EqualTo(deadline));
+        }
+        finally { Object.DestroyImmediate(exit); }
+    }
+
     [UnityTearDown]
     public IEnumerator TearDown()
     {
