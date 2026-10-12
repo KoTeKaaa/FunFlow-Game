@@ -257,7 +257,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2322c63a566ce1544a19e843613454df, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ValuableShowcase
-  rewardValue: 320
+  rewardValue: 200
   speedMultiplier: 0.84
   glassModel: {fileID: 1620634930500003931}
   vaseModel: {fileID: 4913823886325269849}

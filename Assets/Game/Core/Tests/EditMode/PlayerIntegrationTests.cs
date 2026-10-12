@@ -67,6 +67,9 @@ public sealed class PlayerIntegrationTests
         .Single(component => component.GetType().Name == "LootBagVisual");
     private MonoBehaviour[] Items => Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include,
         FindObjectsSortMode.None).Where(component => component.GetType().Name == "LootItem").ToArray();
+    private static int PrefabItemCount => AssetDatabase.LoadAssetAtPath<GameObject>(
+        "Assets/Game/Level/Prefabs/MuseumLevel 1.prefab").GetComponentsInChildren<MonoBehaviour>(true)
+        .Count(component => component != null && component.GetType().Name == "LootItem");
 
     private MonoBehaviour[] Module(string name) => Object.FindObjectsByType<MonoBehaviour>(
         FindObjectsInactive.Include, FindObjectsSortMode.None).Where(c => c.GetType().Name == name).ToArray();
@@ -166,12 +169,17 @@ public sealed class PlayerIntegrationTests
         _session.StartRun();
         SetValue(1000);
         var config = (GameConfig)Source(LootSource, "config");
-        var route = new[] { new Vector3(25f, 0f, 3f), new Vector3(39f, 0f, 3f),
-            new Vector3(43f, 0f, -3f), new Vector3(64f, 0f, -3f), new Vector3(101f, 0f, -3f) };
+        // PR #33 widens the columns and adds obstacles at X=36, 67 and 79.
+        // Keep the full bag clear of cutters; cross the alarm on its left side.
+        var route = new[] { new Vector3(24f, 0f, 5.5f), new Vector3(48f, 0f, 5.5f),
+            new Vector3(52f, 0f, -4.5f), new Vector3(61f, 0f, -4.5f),
+            new Vector3(64f, 0f, -5.5f), new Vector3(70f, 0f, -5.5f),
+            new Vector3(75f, 0f, 6f), new Vector3(96f, 0f, 6f), new Vector3(102.5f, 0f, 0f) };
         int waypoint = 0;
-        for (int launch = 0; launch < 80 && _session.Result == null; launch++)
+        for (int launch = 0; launch < 120 && _session.Result == null; launch++)
         {
-            while (waypoint < route.Length - 1 && _body.position.x >= route[waypoint].x - 0.5f) waypoint++;
+            Vector3 position = new Vector3(_body.position.x, 0f, _body.position.z);
+            while (waypoint < route.Length - 1 && Vector3.Distance(position, route[waypoint]) < 0.5f) waypoint++;
             Vector3 direction = route[waypoint] - _body.position;
             direction.y = 0f;
             Assert.That(direction.x, Is.GreaterThan(0f), "Route requires a backward launch.");
@@ -182,7 +190,7 @@ public sealed class PlayerIntegrationTests
             while (_player.IsMoving && _session.Result == null && Time.realtimeSinceStartup < stopDeadline) yield return null;
             Assert.That(_player.IsMoving && _session.Result == null, Is.False, "Player failed to stop.");
         }
-        Assert.That(_session.State, Is.EqualTo(RunState.Won));
+        Assert.That(_session.State, Is.EqualTo(RunState.Won), $"Route stopped at {_body.position} (waypoint {waypoint}).");
         Assert.That(_session.HasAlarmTriggered, Is.True);
         Assert.That(_session.Result.Value.FinalValue, Is.GreaterThanOrEqualTo(1000), "Route must not require cutting loot.");
     }
@@ -376,7 +384,7 @@ public sealed class PlayerIntegrationTests
             Assert.That(Launch(Vector3.right), Is.False);
             Assert.That(Loot.CurrentValue, Is.Zero);
             Assert.That(Loot.NormalizedWeight, Is.Zero);
-            Assert.That(Items.Length, Is.EqualTo(11));
+            Assert.That(Items.Length, Is.EqualTo(PrefabItemCount));
             Assert.That(Items.All(item => item.gameObject.activeSelf), Is.True);
             Assert.That(_body.position, Is.EqualTo(startPosition));
             Assert.That(_camera.transform.position, Is.EqualTo(cameraPosition));
@@ -545,10 +553,11 @@ public sealed class PlayerIntegrationTests
     [UnityTest]
     public IEnumerator FullLevel_CollectsEachItemOnceAndFinishesWithRealValue()
     {
+        yield return null;
         Assert.That(LootSource.GetType().Name, Is.EqualTo("LootInventory"));
         Assert.That(Object.FindAnyObjectByType<CoreModuleProbe>(), Is.Null);
         var items = Items;
-        Assert.That(items.Length, Is.EqualTo(11));
+        Assert.That(items.Length, Is.EqualTo(PrefabItemCount));
         int totalValue = items.Sum(item => new SerializedObject(item).FindProperty("value").intValue);
         Assert.That(items.All(item => Source(item, "inventory") == LootSource), Is.True);
         int changes = 0, finishes = 0;
@@ -581,7 +590,7 @@ public sealed class PlayerIntegrationTests
                 | System.Reflection.BindingFlags.Instance).Invoke(item, new object[] { _body.GetComponent<Collider>() });
         _session.ReachExit();
         Assert.That(Loot.CurrentValue, Is.EqualTo(totalValue));
-        Assert.That(changes, Is.EqualTo(11));
+        Assert.That(changes, Is.EqualTo(items.Length));
         Assert.That(finishes, Is.EqualTo(1));
         Assert.That(Launch(Vector3.right), Is.False);
     }
@@ -613,7 +622,9 @@ public sealed class PlayerIntegrationTests
             Assert.That((bool)Field(Component("PresentationController"), "alarmAnnounced"), Is.True);
             Assert.That(Text(Source(Component("HudView"), "alarmValue")), Does.Match(@"^\d{2,}:[0-5]\d$"));
             SetValue(750);
-            yield return new WaitForSecondsRealtime(0.8f);
+            float counterDeadline = Time.realtimeSinceStartup + 2f;
+            while (!Text(Source(Component("HudView"), "lootValue")).StartsWith("750")
+                && Time.realtimeSinceStartup < counterDeadline) yield return null;
             Assert.That(Text(Source(Component("HudView"), "lootValue")), Does.Contain("750"));
             _session.ReachExit();
             Assert.That(Text(Source(screens, "titleText")), Does.Contain("750"));

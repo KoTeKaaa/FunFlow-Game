@@ -6,27 +6,32 @@ public class CutterTrap : MonoBehaviour
     [Tooltip("Доля стоимости, которая будет потеряна. В прототипе это 35% (0.35).")]
     [Range(0f, 1f)]
     public float lossFraction = 0.35f; 
-    [SerializeField] private MonoBehaviour lootSource;
 
-    // Защита от двойного срабатывания (как t.used = true в прототипе)
+    private ILootInventory _lootInventory;
+    [SerializeField] private MonoBehaviour lootSource;
     private bool _isUsed = false;
+
+    private void Start()
+    {
+        _lootInventory = LevelServices.Resolve<ILootInventory>(this, lootSource);
+        lootSource = _lootInventory as MonoBehaviour;
+    }
+
+    private void OnEnable()
+    {
+        _isUsed = false;
+    }
 
     private void OnTriggerEnter(Collider other)
     {
-        // Если ловушка уже сработала, игнорируем новые контакты
-        if (_isUsed) return; 
+        if (_isUsed || _lootInventory == null) return;
 
-        // Ловушка реагирует ТОЛЬКО на мешок (Слой Bag - 12)
-        if (other.gameObject.layer == 12 && lootSource is ILootInventory)
+        // Порез вызывается контактом мешка, а не тела вора.
+        if (other.gameObject.layer == LayerMask.NameToLayer("Bag"))
         {
-            _isUsed = true; // Отмечаем как использованную
+            _isUsed = true;
             Debug.Log($"[CutterTrap] Мешок разрезан! Потеря: {lossFraction * 100}%");
-
-            ILootInventory loot = lootSource as ILootInventory;
-            if (loot != null)
-            {
-                loot.RemoveFraction(lossFraction);
-            }
+            _lootInventory.RemoveFraction(lossFraction);
         }
     }
 }

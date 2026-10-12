@@ -1,33 +1,26 @@
 using UnityEngine;
-// using Game.Core.Contracts; // Раскомментируем, когда участник №1 добавит контракты
 
-public class ExitTrigger : MonoBehaviour
+public class ExitTrigger : MonoBehaviour, ILevelExit
 {
     [Header("Core Reference")]
-    [Tooltip("Ссылка на объект Core, реализующий IRunSession. Будет назначено участником №1.")]
+    [Tooltip("Необязательная ссылка: при запуске Core находится в этой же сцене.")]
     [SerializeField] private MonoBehaviour coreSessionSource;
     
-    // private IRunSession runSession;
+    private IRunSession runSession;
 
     private void Start()
     {
-        // runSession = coreSessionSource as IRunSession;
+        runSession = LevelServices.Resolve<IRunSession>(this, coreSessionSource);
     }
 
     private void OnTriggerEnter(Collider other)
     {
         // Проверяем, что к нам приехал игрок (Слой Player - 8)
-        if (other.gameObject.layer == 8)
+        if (other.gameObject.layer == LayerMask.NameToLayer("Player") && runSession != null)
         {
             Debug.Log("[ExitTrigger] Игрок достиг выхода! Уровень пройден!");
 
-            /*
-            if (runSession != null)
-            {
-                // Сообщаем ядру, что выход достигнут (название метода по правилам team-guide)
-                runSession.ReachExit();
-            }
-            */
+            runSession.ReachExit();
         }
     }
 }
