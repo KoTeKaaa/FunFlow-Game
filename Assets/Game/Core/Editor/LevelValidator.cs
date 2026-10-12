@@ -103,6 +103,16 @@ public static class LevelValidator
         }
 
         if (!gameplayScene) return issues;
+        var music = active.Where(c => c.GetType().Name == "MusicController").ToArray();
+        if (music.Length != 1) Error(roots.FirstOrDefault(), $"Expected one active MusicController; found {music.Length}.");
+        foreach (var controller in music)
+        {
+            var data = new SerializedObject(controller);
+            foreach (string field in new[] { "sourceA", "sourceB", "lobbyMusic", "levelMusic", "alarmMusic" })
+                if (data.FindProperty(field).objectReferenceValue == null) Error(controller, $"Music is missing {field}.");
+            if (data.FindProperty("sourceA").objectReferenceValue == data.FindProperty("sourceB").objectReferenceValue)
+                Error(controller, "Music requires two distinct AudioSources.");
+        }
         if (!active.OfType<LevelAlarmSettings>().Any())
             Error(roots.FirstOrDefault(), "Level requires LevelAlarmSettings on its prefab root to configure the alarm timer.");
         foreach (var service in new[] { typeof(IRunSession), typeof(ILootInventory), typeof(IPlayerControl) })
