@@ -606,7 +606,8 @@ MonoBehaviour:
   decelerationBurdenFactor: 0
   minLaunchPower: 0.1
   maxLaunchAngle: 77
-  headOnSpeedLoss: 0.75
+  sideWallSpeedMultiplier: 0.8
+  headOnSpeedLoss: 0.5
   glancingSpeedLoss: 0.05
   wallBounce: 0.3
   minImpactSpeed: 0.5

@@ -22,6 +22,11 @@ public static class LevelValidator
             .Select(transform => transform.gameObject).ToArray();
         var scripts = objects.SelectMany(obj => obj.GetComponents<MonoBehaviour>()).Where(c => c != null).ToArray();
         var active = scripts.Where(c => c.isActiveAndEnabled).ToArray();
+        foreach (var setting in scripts.OfType<LevelAlarmSettings>())
+            if (!float.IsFinite(setting.AlarmDurationSeconds) || setting.AlarmDurationSeconds <= 0)
+                Error(setting, "Level alarm duration must be positive and finite.");
+        if (active.OfType<LevelAlarmSettings>().Count() > 1)
+            Error(roots.FirstOrDefault(), "Expected at most one active LevelAlarmSettings.");
         foreach (var obj in objects)
         {
             if (GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(obj) > 0)
@@ -98,6 +103,8 @@ public static class LevelValidator
         }
 
         if (!gameplayScene) return issues;
+        if (!active.OfType<LevelAlarmSettings>().Any())
+            Error(roots.FirstOrDefault(), "Level requires LevelAlarmSettings on its prefab root to configure the alarm timer.");
         foreach (var service in new[] { typeof(IRunSession), typeof(ILootInventory), typeof(IPlayerControl) })
         {
             int count = active.Count(service.IsInstanceOfType);
