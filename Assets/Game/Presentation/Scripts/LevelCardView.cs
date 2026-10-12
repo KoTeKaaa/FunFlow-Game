@@ -37,7 +37,7 @@ namespace FunFlow.Presentation
             if (aspect != null && artwork.sprite != null)
                 aspect.aspectRatio = artwork.sprite.rect.width / artwork.sprite.rect.height;
             button.interactable = !string.IsNullOrWhiteSpace(entry.ScenePath) && UnityEngine.SceneManagement.SceneUtility.GetBuildIndexByScenePath(entry.ScenePath) >= 0;
-            action.text = button.interactable ? "Начать →" : "Недоступен в сборке";
+            ButtonLabels.Set(action, button.interactable ? "Начать →" : "Недоступен в сборке");
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(() => selected());
         }

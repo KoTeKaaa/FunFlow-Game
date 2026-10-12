@@ -192,6 +192,7 @@ namespace FunFlow.Presentation.EditorTools
             text.spriteAsset = icons;
             text.text = value; text.fontSize = size; text.color = color; text.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
             text.raycastTarget = false; text.textWrappingMode = TextWrappingModes.Normal;
+            ButtonLabels.Set(text, value);
             return text;
         }
         private static Button Button(string name, Transform parent, string value, Vector2 position, Vector2 bounds, bool primary)

@@ -135,7 +135,7 @@ namespace FunFlow.Presentation
             if (tagText != null) tagText.text = tag.ToUpperInvariant();
             if (titleText != null) titleText.text = title;
             if (bodyText != null) bodyText.text = body;
-            if (primaryLabel != null) primaryLabel.text = button;
+            ButtonLabels.Set(primaryLabel, button);
             if (hintText != null) hintText.text = hint;
         }
 

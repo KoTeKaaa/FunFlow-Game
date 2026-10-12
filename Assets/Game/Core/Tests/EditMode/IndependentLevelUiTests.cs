@@ -28,6 +28,16 @@ public sealed class IndependentLevelUiTests
             Assert.That(texts, Is.Not.Empty);
             foreach (var text in texts)
                 Assert.That(new SerializedObject(text).FindProperty("m_fontAsset").objectReferenceValue, Is.SameAs(font), text.name);
+            Assert.That(texts.Any(text => ((string)text.GetType().GetProperty("text").GetValue(text)).Contains("→")
+                || ((string)text.GetType().GetProperty("text").GetValue(text)).Contains("←")), Is.False);
+            var arrows = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<UnityEngine.UI.Image>(true))
+                .Where(image => image.name == "NavigationIcon").ToArray();
+            Assert.That(arrows, Is.Not.Empty);
+            foreach (var arrow in arrows)
+            {
+                Assert.That(AssetDatabase.GetAssetPath(arrow.sprite), Does.EndWith("NavigationArrow.png"));
+                Assert.That(arrow.raycastTarget, Is.False, "Decorative icons must not intercept mouse gestures.");
+            }
         }
         finally { EditorSceneManager.ClosePreviewScene(scene); }
     }
@@ -96,7 +106,7 @@ public sealed class IndependentLevelUiTests
         Assert.That(Text(Reference(screens, "titleText")), Does.Not.Contain("Итого"));
         Assert.That(Text(Reference(screens, "bodyText")), Does.Not.Contain("Уровень 1 —"));
         Assert.That(Text(Reference(flow, "levelButtonLabel")), Is.EqualTo(sequence.HasNextLevel
-            ? "Следующий уровень →" : "Выход в главное меню"));
+            ? "Следующий уровень" : "Выход в главное меню"));
 
         if (number == 3)
         {

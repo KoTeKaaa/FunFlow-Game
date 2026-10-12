@@ -359,6 +359,7 @@ namespace FunFlow.Presentation.EditorTools
             t.alignment = alignment;
             t.textWrappingMode = TextWrappingModes.NoWrap;
             t.raycastTarget = false; // текст не должен перехватывать клики по игре
+            ButtonLabels.Set(t, text);
             return t;
         }
 

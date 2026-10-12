@@ -119,7 +119,7 @@ namespace FunFlow.Presentation
 
         private static void SetText(TMP_Text target, string value)
         {
-            if (target != null && target.text != value) target.text = value;
+            ButtonLabels.Set(target, value);
         }
     }
 }
