@@ -12,6 +12,7 @@ namespace FunFlow.Presentation
         [SerializeField] private MonoBehaviour runSessionSource, levelSequenceSource;
         [SerializeField] private GameObject pausePanel, settingsPanel;
         [SerializeField] private Button resumeButton, settingsButton, exitButton, settingsBack;
+        [SerializeField] private Button restartButton;
         [SerializeField] private Slider musicSlider, effectsSlider;
         [SerializeField] private TMP_Text musicValue, effectsValue;
         private IRunPause pause;
@@ -36,6 +37,7 @@ namespace FunFlow.Presentation
             if (pause == null || sequence == null) { enabled = false; return; }
             pause.PauseChanged += ShowPause;
             resumeButton.onClick.AddListener(Resume);
+            restartButton?.onClick.AddListener(Restart);
             settingsButton.onClick.AddListener(ShowSettings);
             exitButton.onClick.AddListener(Exit);
             settingsBack.onClick.AddListener(Back);
@@ -54,6 +56,7 @@ namespace FunFlow.Presentation
                 AudioListener.pause = listenerWasPaused;
             }
             resumeButton.onClick.RemoveListener(Resume);
+            restartButton?.onClick.RemoveListener(Restart);
             settingsButton.onClick.RemoveListener(ShowSettings);
             exitButton.onClick.RemoveListener(Exit);
             settingsBack.onClick.RemoveListener(Back);
@@ -72,6 +75,14 @@ namespace FunFlow.Presentation
 
         public void PlayClick() => clickSource?.PlayOneShot(clickClip, AudioPreferences.EffectsVolume * 0.25f);
         private void Resume() => pause.SetPaused(false);
+        private void Restart()
+        {
+            if (pause.IsPaused && runSessionSource is IRunSession session)
+            {
+                pause.SetPaused(false);
+                session.RestartRun();
+            }
+        }
         private void Exit() => sequence.ReturnToMainMenu();
         private void Back() { settingsPanel.SetActive(false); pausePanel.SetActive(true); Focus(resumeButton.gameObject); }
         private void ShowPause(bool paused)
