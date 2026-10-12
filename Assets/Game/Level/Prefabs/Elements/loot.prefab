@@ -306,7 +306,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eee95c8feb40cb648bbe1919450eed48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LootItem
-  value: 10
+  value: 50
+  inventory: {fileID: 0}
 --- !u!1 &9111532063706692058
 GameObject:
   m_ObjectHideFlags: 0

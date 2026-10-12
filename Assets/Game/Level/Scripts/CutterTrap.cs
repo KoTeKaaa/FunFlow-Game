@@ -8,25 +8,13 @@ public class CutterTrap : MonoBehaviour
     public float lossFraction = 0.35f; 
 
     private ILootInventory _lootInventory;
+    [SerializeField] private MonoBehaviour lootSource;
     private bool _isUsed = false;
 
     private void Start()
     {
-        // Ищем объект с интерфейсом ILootInventory на сцене
-        var allScripts = Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
-        foreach (var script in allScripts)
-        {
-            if (script is ILootInventory loot)
-            {
-                _lootInventory = loot;
-                break;
-            }
-        }
-
-        if (_lootInventory == null)
-        {
-            Debug.LogWarning($"[{gameObject.name}] ILootInventory не найден на сцене! Ловушка не сработает.");
-        }
+        _lootInventory = LevelServices.Resolve<ILootInventory>(this, lootSource);
+        lootSource = _lootInventory as MonoBehaviour;
     }
 
     private void OnEnable()
@@ -38,11 +26,11 @@ public class CutterTrap : MonoBehaviour
     {
         if (_isUsed || _lootInventory == null) return; 
 
-        // ТЕПЕРЬ ЛОВУШКА РЕАГИРУЕТ НА ИГРОКА
-        if (other.gameObject.layer == LayerMask.NameToLayer("Player"))
+        // Порез вызывается контактом мешка, а не тела вора.
+        if (other.gameObject.layer == LayerMask.NameToLayer("Bag"))
         {
             _isUsed = true; 
-            Debug.Log($"[CutterTrap] Игрок задел шипы! Потеря: {lossFraction * 100}% из мешка");
+            Debug.Log($"[CutterTrap] Мешок разрезан! Потеря: {lossFraction * 100}%");
             _lootInventory.RemoveFraction(lossFraction);
         }
     }

@@ -5,21 +5,10 @@ public class LootItem : MonoBehaviour
     [Tooltip("Количество очков за подбор")]
     [SerializeField] private int value = 10;
     
-    // Ссылка больше не сериализуется (не торчит в инспекторе), мы находим её кодом
-    private LootInventory inventory;
+    [SerializeField] private LootInventory inventory;
     private bool collected;
 
-    private void Start()
-    {
-        // Автоматическое подключение к единственному инвентарю на сцене
-        // FindAnyObjectByType работает в Unity 2023/Unity 6 гораздо быстрее старого FindObjectOfType
-        inventory = Object.FindAnyObjectByType<LootInventory>();
-        
-        if (inventory == null)
-        {
-            Debug.LogWarning($"[{gameObject.name}] LootInventory не найден на сцене!");
-        }
-    }
+    private void Start() => inventory = LevelServices.Resolve<LootInventory>(this, inventory);
 
     private void OnEnable()
     {
