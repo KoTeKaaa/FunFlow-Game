@@ -6809,8 +6809,6 @@ MonoBehaviour:
   levelButton: {fileID: 1535433584585102999}
   levelButtonLabel: {fileID: 714077063517171959}
   tagText: {fileID: 7474971056602632769}
-  titleText: {fileID: 6626451561925839709}
-  bodyText: {fileID: 3063240010660412091}
   hintText: {fileID: 5308321158913845227}
   primaryLabel: {fileID: 3655175818501380140}
   keyboardShortcut: 1
