@@ -61,6 +61,9 @@ public sealed class PlayerIntegrationTests
     private bool Launch(Vector3 direction, float power = 0.2f) =>
         (bool)_motor.GetType().GetMethod("TryLaunch").Invoke(_motor, new object[] { direction, power });
 
+    private MonoBehaviour LevelExit => LevelServices.Components(_session.gameObject.scene)
+        .Single(component => component is ILevelExit);
+
     private MonoBehaviour LootSource => (MonoBehaviour)Source(_session, "_lootSource");
     private ILootInventory Loot => (ILootInventory)LootSource;
     private MonoBehaviour BagVisual => Object.FindObjectsByType<MonoBehaviour>()
@@ -120,7 +123,10 @@ public sealed class PlayerIntegrationTests
         Assert.That(Source(alarm, "coreSessionSource"), Is.SameAs(_session));
         _session.StartRun();
         SetValue(1000);
+        foreach (var item in Items) item.gameObject.SetActive(false); // Isolate trap physics from nearby pickups.
         var cutter = Module("CutterTrap").OrderBy(c => c.transform.position.x).First();
+        foreach (var other in Module("CutterTrap").Where(component => component != cutter))
+            other.GetComponent<Collider>().enabled = false;
         Assert.That(Source(cutter, "lootSource"), Is.SameAs(LootSource));
         Assert.That(BagVisual.GetComponent<Collider>().attachedRigidbody.isKinematic, Is.True);
         _body.position = new Vector3(cutter.transform.position.x - 1f, _body.position.y, cutter.transform.position.z);
@@ -169,22 +175,20 @@ public sealed class PlayerIntegrationTests
         _session.StartRun();
         SetValue(1000);
         var config = (GameConfig)Source(LootSource, "config");
-        // PR #33 widens the columns and adds obstacles at X=36, 67 and 79.
-        // Keep the full bag clear of cutters; cross the alarm on its left side.
-        var route = new[] { new Vector3(24f, 0f, 5.5f), new Vector3(48f, 0f, 5.5f),
-            new Vector3(52f, 0f, -4.5f), new Vector3(61f, 0f, -4.5f),
-            new Vector3(64f, 0f, -5.5f), new Vector3(70f, 0f, -5.5f),
-            new Vector3(75f, 0f, 6f), new Vector3(96f, 0f, 6f), new Vector3(102.5f, 0f, 0f) };
+        var route = LevelTestRoute.Build(_body, LevelExit.transform.position, true);
         int waypoint = 0;
         for (int launch = 0; launch < 120 && _session.Result == null; launch++)
         {
             Vector3 position = new Vector3(_body.position.x, 0f, _body.position.z);
-            while (waypoint < route.Length - 1 && Vector3.Distance(position, route[waypoint]) < 0.5f) waypoint++;
+            while (waypoint < route.Length - 1 && Vector3.Distance(position, route[waypoint]) < 0.08f) waypoint++;
             Vector3 direction = route[waypoint] - _body.position;
             direction.y = 0f;
             Assert.That(direction.x, Is.GreaterThan(0f), "Route requires a backward launch.");
             float speed = config.MaxLaunchSpeed * Mathf.Lerp(1f, config.FullWeightSpeedMultiplier, Loot.NormalizedWeight);
-            float power = Mathf.Clamp01(Mathf.Sqrt(2f * config.SlideDeceleration * direction.magnitude) / speed);
+            float minPower = new SerializedObject(_motor).FindProperty("minLaunchPower").floatValue;
+            float targetSpeed = Mathf.Sqrt(2f * config.SlideDeceleration * direction.magnitude)
+                + config.SlideDeceleration * Time.fixedDeltaTime * 0.5f;
+            float power = Mathf.Clamp01((targetSpeed / speed - minPower) / (1f - minPower));
             Assert.That(Launch(direction.normalized, power), Is.True);
             float stopDeadline = Time.realtimeSinceStartup + 8f;
             while (_player.IsMoving && _session.Result == null && Time.realtimeSinceStartup < stopDeadline) yield return null;
@@ -219,13 +223,13 @@ public sealed class PlayerIntegrationTests
             yield return null;
             var config = (GameConfig)Source(LootSource, "config");
             var alarm = Module("AlarmTrap").OrderBy(c => c.transform.position.x).First();
-            var exit = Object.FindAnyObjectByType<RunExitTrigger>();
+            var exit = LevelExit;
             _session.StartRun();
             SetValue(config.ValueAtFullWeight);
             Assert.That((float)_motor.GetType().GetProperty("Burden").GetValue(_motor), Is.EqualTo(1f));
             float radius = _body.GetComponent<Collider>().bounds.extents.x;
             _body.position = new Vector3(alarm.GetComponent<Collider>().bounds.min.x - radius + 0.02f,
-                _body.position.y, -4.5f);
+                _body.position.y, alarm.GetComponent<Collider>().bounds.min.z + radius + 0.8f);
             Physics.SyncTransforms();
             double alarmStart = -1d;
             _session.StateChanged += state =>
@@ -233,9 +237,7 @@ public sealed class PlayerIntegrationTests
                 if (state == RunState.Alarm) alarmStart = Time.timeAsDouble;
             };
             int launches = 0;
-            // Current level: trigger the alarm, then pass below the two wide columns.
-            var route = new[] { new Vector3(62f, 0f, -6.5f), new Vector3(96.5f, 0f, -6.5f),
-                new Vector3(exit.transform.position.x, 0f, exit.transform.position.z) };
+            var route = LevelTestRoute.Build(_body, exit.transform.position, true);
             int waypoint = 0;
             double safetyDeadline = Time.timeAsDouble + 70d;
             while (_session.Result == null && Time.timeAsDouble < safetyDeadline && launches < 40)
@@ -278,10 +280,13 @@ public sealed class PlayerIntegrationTests
         _session.StartRun();
         double started = Time.timeAsDouble;
         var config = (GameConfig)Source(LootSource, "config");
-        var route = new[] { new Vector3(10f, 0f, -2f), new Vector3(12f, 0f, -1f),
-            new Vector3(14f, 0f, 0f), new Vector3(16f, 0f, 1f), new Vector3(18f, 0f, 2f),
-            new Vector3(28f, 0f, 3.47f), new Vector3(39f, 0f, 3f), new Vector3(43f, 0f, -3f),
-            new Vector3(64f, 0f, -3f), new Vector3(101f, 0f, -3f) };
+        var coin = Items.OrderBy(item => item.transform.position.x).First();
+        var firstLeg = LevelTestRoute.Build(_body, coin.transform.position, false);
+        var origin = _body.position;
+        _body.position = coin.transform.position;
+        var secondLeg = LevelTestRoute.Build(_body, LevelExit.transform.position, false);
+        _body.position = origin;
+        var route = firstLeg.Concat(secondLeg).ToArray();
         int waypoint = 0, launches = 0;
         while (_session.Result == null && Time.timeAsDouble - started < 300d && launches < 80)
         {
@@ -290,7 +295,10 @@ public sealed class PlayerIntegrationTests
             direction.y = 0f;
             Assert.That(direction.x, Is.GreaterThan(0f));
             float speed = config.MaxLaunchSpeed * Mathf.Lerp(1f, config.FullWeightSpeedMultiplier, Loot.NormalizedWeight);
-            float power = Mathf.Clamp01(Mathf.Sqrt(2f * config.SlideDeceleration * direction.magnitude) / speed);
+            float minPower = new SerializedObject(_motor).FindProperty("minLaunchPower").floatValue;
+            float targetSpeed = Mathf.Sqrt(2f * config.SlideDeceleration * direction.magnitude)
+                + config.SlideDeceleration * Time.fixedDeltaTime * 0.5f;
+            float power = Mathf.Clamp01((targetSpeed / speed - minPower) / (1f - minPower));
             Assert.That(Launch(direction.normalized, power), Is.True);
             launches++;
             double stopDeadline = Time.timeAsDouble + 5d;
@@ -311,7 +319,8 @@ public sealed class PlayerIntegrationTests
     public void SavedScene_UsesRealPrefabAndSharedCameraAndLootSource()
     {
         Assert.That(Source(_session, "_playerSource"), Is.SameAs(_motor));
-        Assert.That(Source(_session, "_alarmExit"), Is.SameAs(Object.FindAnyObjectByType<RunExitTrigger>().transform));
+        Assert.That(Source(_session, "_alarmExit"), Is.Null, "Exit must resolve automatically when the alarm starts.");
+        Assert.That(LevelServices.FindExit(_session.gameObject.scene), Is.SameAs(LevelExit.transform));
         Assert.That(Source(_motor, "lootSource"), Is.SameAs(Source(_session, "_lootSource")));
         Assert.That(Source(_camera, "_target"), Is.SameAs(_motor.transform));
         var input = _motor.GetComponents<MonoBehaviour>()
@@ -359,10 +368,9 @@ public sealed class PlayerIntegrationTests
                 _session.SendMessage("Update");
                 Assert.That(_session.State, Is.EqualTo(RunState.Lost));
             }
-            var hiddenObject = GameObject.Find("GameRoot/MuseumLevel/loot (1)");
+            var hiddenObject = Items.OrderBy(item => item.transform.position.x).First().gameObject;
             hiddenObject.SetActive(false);
-            var alarm = GameObject.Find("GameRoot/MuseumLevel").transform
-                .Find("Generated_Track/AlarmZone").gameObject;
+            var alarm = Module("AlarmTrap").OrderBy(component => component.transform.position.x).First().gameObject;
             var alarmComponent = alarm.GetComponents<MonoBehaviour>().Single(c => c.GetType().Name == "AlarmTrap");
             alarmComponent.GetType().GetMethod("OnTriggerEnter",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
@@ -409,10 +417,8 @@ public sealed class PlayerIntegrationTests
             Assert.That(Source(_session, "_playerSource"), Is.SameAs(_motor));
             Assert.That(Source(_session, "_lootSource"), Is.SameAs(bag));
             Assert.That(Source(_motor, "lootSource"), Is.SameAs(bag));
-            Assert.That(GameObject.Find("GameRoot/MuseumLevel/loot (1)"), Is.Not.Null);
-            var resetAlarm = GameObject.Find("GameRoot/MuseumLevel").transform
-                .Find("Generated_Track/AlarmZone").gameObject
-                .GetComponents<MonoBehaviour>().Single(component => component.GetType().Name == "AlarmTrap");
+            Assert.That(Items, Is.Not.Empty);
+            var resetAlarm = Module("AlarmTrap").OrderBy(component => component.transform.position.x).First();
             Assert.That(resetAlarm.GetType().GetField("_isUsed",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 .GetValue(resetAlarm), Is.EqualTo(false));
@@ -485,7 +491,7 @@ public sealed class PlayerIntegrationTests
     {
         // Measure full slides without finishing at the short route's exit.
         // Exit contacts and scene reloads have their own integration tests.
-        Object.FindAnyObjectByType<RunExitTrigger>().gameObject.SetActive(false);
+        LevelExit.gameObject.SetActive(false);
         var loot = Loot;
         var config = (GameConfig)Source(_motor, "config");
         Assert.That(Source(LootSource, "config"), Is.SameAs(config));
@@ -643,6 +649,9 @@ public sealed class PlayerIntegrationTests
     public IEnumerator FullLevel_CollectsEachItemOnceAndFinishesWithRealValue()
     {
         yield return null;
+        // Exercise pickup and exit physics without unrelated trap/showcase contacts on the updated map.
+        foreach (var element in Module("CutterTrap").Concat(Module("AlarmTrap")).Concat(Module("ValuableShowcase")))
+            foreach (var collider in element.GetComponentsInChildren<Collider>()) collider.enabled = false;
         Assert.That(LootSource.GetType().Name, Is.EqualTo("LootInventory"));
         Assert.That(Object.FindAnyObjectByType<CoreModuleProbe>(), Is.Null);
         var items = Items;
@@ -663,7 +672,7 @@ public sealed class PlayerIntegrationTests
                 yield return new WaitForFixedUpdate();
             Assert.That(item.gameObject.activeSelf, Is.False, $"No pickup contact with {item.name}.");
         }
-        var exit = Object.FindAnyObjectByType<RunExitTrigger>();
+        var exit = LevelExit;
         _body.position = exit.transform.position;
         _body.WakeUp();
         Physics.SyncTransforms();
@@ -738,7 +747,7 @@ public sealed class PlayerIntegrationTests
             Assert.That(Text(Source(Component("HudView"), "lootValue")), Does.StartWith("0"));
             Assert.That((bool)Field(Component("PresentationController"), "alarmAnnounced"), Is.False);
             Assert.That(Text(Source(Component("HudView"), "alarmValue")), Is.EqualTo("Тихо"));
-            Assert.That(Object.FindObjectsByType<AudioSource>().All(s => !s.isPlaying), Is.True);
+            Assert.That(Object.FindObjectsByType<AudioSource>().Where(source => source.GetComponent("MusicController") == null).All(source => !source.isPlaying), Is.True);
             Assert.That(GameObject.Find("PresentationParticles"), Is.Null);
         }
     }
@@ -839,7 +848,7 @@ public sealed class PlayerIntegrationTests
             var line = preview.GetComponent<LineRenderer>();
             Assert.That(line.enabled, Is.True);
             Assert.That(line.GetPosition(1).x, Is.GreaterThan(line.GetPosition(0).x));
-            Assert.That(line.GetPosition(0).y, Is.EqualTo(0.02f).Within(0.001f));
+            Assert.That(line.GetPosition(0).y, Is.EqualTo(new SerializedObject(preview).FindProperty("floorOffset").floatValue).Within(0.001f));
             Assert.That(line.GetPosition(1).y, Is.EqualTo(line.GetPosition(0).y).Within(0.001f));
             _session.ReachExit();
             Pointer(_motor.transform.position - Vector3.right * 3f, false);

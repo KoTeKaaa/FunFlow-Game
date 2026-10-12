@@ -8,6 +8,29 @@ using UnityEngine.TestTools;
 
 public sealed class IndependentLevelUiTests
 {
+    [TestCase("Assets/Game/Core/Scenes/Game.unity")]
+    [TestCase("Assets/Game/Core/Scenes/Game_Level2.unity")]
+    [TestCase("Assets/Game/Core/Scenes/Game_Level3.unity")]
+    [TestCase("Assets/Game/Presentation/Scenes/MainMenu.unity")]
+    public void SavedUi_UsesBakedRussianFont(string path)
+    {
+        var font = AssetDatabase.LoadAssetAtPath<Object>("Assets/Game/Presentation/UI/RussianUi SDF.asset");
+        Assert.That(font, Is.Not.Null);
+        Assert.That(font.GetType().GetProperty("atlasPopulationMode").GetValue(font).ToString(), Is.EqualTo("Static"));
+        var characters = (System.Collections.IDictionary)font.GetType().GetProperty("characterLookupTable").GetValue(font);
+        foreach (char character in "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя•−«»№")
+            Assert.That(characters.Contains((uint)character), Is.True, $"Missing baked glyph {character}.");
+        var scene = EditorSceneManager.OpenPreviewScene(path);
+        try
+        {
+            var texts = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<MonoBehaviour>(true))
+                .Where(component => component != null && component.GetType().Name == "TextMeshProUGUI").ToArray();
+            Assert.That(texts, Is.Not.Empty);
+            foreach (var text in texts)
+                Assert.That(new SerializedObject(text).FindProperty("m_fontAsset").objectReferenceValue, Is.SameAs(font), text.name);
+        }
+        finally { EditorSceneManager.ClosePreviewScene(scene); }
+    }
     private static Object Reference(Object owner, string field) =>
         new SerializedObject(owner).FindProperty(field).objectReferenceValue;
     private static string Text(Object text) => (string)text.GetType().GetProperty("text").GetValue(text);

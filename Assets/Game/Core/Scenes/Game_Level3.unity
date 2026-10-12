@@ -303,7 +303,7 @@ PrefabInstance:
     - target: {fileID: 8980637749913505555, guid: 83f209504ce45314b8c976138c564dab, type: 3}
       propertyPath: routeExit
       value: 
-      objectReference: {fileID: 869949873}
+      objectReference: {fileID: 0}
     - target: {fileID: 8980637749913505555, guid: 83f209504ce45314b8c976138c564dab, type: 3}
       propertyPath: lootSource
       value: 
@@ -824,40 +824,13 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 6784296567054148600, guid: 6faedd444eac29446b8e70a7e1e123e2, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 869949878}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 6faedd444eac29446b8e70a7e1e123e2, type: 3}
 --- !u!4 &869949858 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3642815612359107979, guid: 6faedd444eac29446b8e70a7e1e123e2, type: 3}
   m_PrefabInstance: {fileID: 869949857}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &869949873 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 7398920132323004035, guid: 6faedd444eac29446b8e70a7e1e123e2, type: 3}
-  m_PrefabInstance: {fileID: 869949857}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &869949874 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 6784296567054148600, guid: 6faedd444eac29446b8e70a7e1e123e2, type: 3}
-  m_PrefabInstance: {fileID: 869949857}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &869949878
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 869949874}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2b3e16b50aaee4649b8d76570062ea50, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Game.Core::RunExitTrigger
-  _session: {fileID: 1580558110}
-  _player: {fileID: 1393955277}
 --- !u!1001 &1393955274
 PrefabInstance:
   m_ObjectHideFlags: 0
