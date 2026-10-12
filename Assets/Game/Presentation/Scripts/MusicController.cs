@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 using FunFlow.Presentation;
 
@@ -28,22 +29,18 @@ public class MusicController : MonoBehaviour
 
     private RunState _lastState;
     private bool _hasLastState;
+    private bool _started;
+    private AudioClip _targetClip;
+    private float _activeGain;
+    private float _inactiveGain;
 
     private void Awake()
     {
-        _runSession = runSessionSource as IRunSession;
-        _runPause = runSessionSource as IRunPause;
-
-        if (_runSession == null)
+        if (sourceA == null || sourceB == null || sourceA == sourceB)
         {
-            Debug.LogError("MusicController: runSessionSource не реализует IRunSession");
+            Debug.LogError("MusicController: assign two distinct AudioSources.", this);
             enabled = false;
             return;
-        }
-
-        if (_runPause == null)
-        {
-            Debug.LogWarning("MusicController: runSessionSource не реализует IRunPause.");
         }
 
         _active = sourceA;
@@ -55,17 +52,36 @@ public class MusicController : MonoBehaviour
             src.loop = true;
             src.volume = 0f;
             src.ignoreListenerPause = true;
+            src.spatialBlend = 0f;
+            src.Stop();
         }
+    }
+
+    private void Start()
+    {
+        // Scene roots are available in Start. The main menu needs no fake Core.
+        bool hasSession = LevelServices.Components(gameObject.scene)
+            .Any(c => c.isActiveAndEnabled && c is IRunSession);
+        if (runSessionSource != null || hasSession)
+        {
+            _runSession = LevelServices.Resolve<IRunSession>(this, runSessionSource);
+            if (_runSession == null) { enabled = false; return; }
+            _runPause = _runSession as IRunPause;
+        }
+        _started = true;
+        OnEnable();
     }
 
     private void OnEnable()
     {
+        if (!_started) return;
+        _hasLastState = false;
         if (_runSession != null)
         {
             _runSession.StateChanged += HandleStateChanged;
-            _hasLastState = false;
             HandleStateChanged(_runSession.State);
         }
+        else HandleStateChanged(RunState.Waiting);
 
         if (_runPause != null)
             _runPause.PauseChanged += HandlePauseChanged;
@@ -84,12 +100,22 @@ public class MusicController : MonoBehaviour
             StopCoroutine(_fadeRoutine);
             _fadeRoutine = null;
         }
+        if (sourceA != null) { sourceA.Stop(); sourceA.volume = 0f; }
+        if (sourceB != null) { sourceB.Stop(); sourceB.volume = 0f; }
+        _activeGain = _inactiveGain = 0f;
+        _targetClip = null;
     }
 
     private void Update()
     {
-        if (_active != null && _active.isPlaying && _fadeRoutine == null)
-            _active.volume = AudioPreferences.MusicVolume;
+        ApplyVolumes();
+    }
+
+    private void ApplyVolumes()
+    {
+        float volume = AudioPreferences.MusicVolume;
+        if (_active != null) _active.volume = _activeGain * volume;
+        if (_inactive != null) _inactive.volume = _inactiveGain * volume;
     }
 
     private void HandlePauseChanged(bool isPaused)
@@ -113,17 +139,36 @@ public class MusicController : MonoBehaviour
             _ => null
         };
 
-        if (_active.clip == next) return;
+        if (_targetClip == next) return;
+        _targetClip = next;
 
         if (_fadeRoutine != null)
+        {
             StopCoroutine(_fadeRoutine);
+            _fadeRoutine = null;
+        }
+        // Keep the louder track when interrupting a fade, and retire the other voice.
+        if (_inactiveGain > _activeGain)
+        {
+            (_active, _inactive) = (_inactive, _active);
+            (_activeGain, _inactiveGain) = (_inactiveGain, _activeGain);
+        }
+        _inactive.Stop();
+        _inactiveGain = 0f;
+        if (next != null && _active.clip == next)
+        {
+            _activeGain = 1f;
+            if (!_active.isPlaying) _active.Play();
+            ApplyVolumes();
+            return;
+        }
 
         _fadeRoutine = StartCoroutine(CrossFade(next));
     }
 
     private IEnumerator CrossFade(AudioClip next)
     {
-        float startActiveVolume = _active.volume;
+        float startActiveGain = _activeGain;
 
         if (next != null)
         {
@@ -133,31 +178,38 @@ public class MusicController : MonoBehaviour
         }
 
         float t = 0f;
+        float duration = float.IsFinite(fadeDuration) ? Mathf.Max(0f, fadeDuration) : 0f;
+        // Ensure the coroutine handle is assigned even for an instant transition.
+        yield return null;
 
-        while (t < fadeDuration)
+        while (t < duration)
         {
             t += Time.unscaledDeltaTime;
-            float progress = t / fadeDuration;
+            float progress = Mathf.Clamp01(t / duration);
 
-            _active.volume = Mathf.Lerp(startActiveVolume, 0f, progress);
+            _activeGain = Mathf.Lerp(startActiveGain, 0f, progress);
 
             if (next != null)
             {
-                float targetVolume = AudioPreferences.MusicVolume;
-                _inactive.volume = Mathf.Lerp(0f, targetVolume, progress);
+                _inactiveGain = progress;
             }
+            ApplyVolumes();
 
             yield return null;
         }
 
         _active.Stop();
         _active.volume = 0f;
+        _activeGain = 0f;
 
         if (next != null)
         {
             (_active, _inactive) = (_inactive, _active);
+            _activeGain = 1f;
+            _inactiveGain = 0f;
         }
 
         _fadeRoutine = null;
+        ApplyVolumes();
     }
 }
