@@ -62,6 +62,8 @@ public sealed class RunSession : MonoBehaviour, IRunSession, IRunPause
             return;
         }
 
+        if (_alarmExit == null)
+            _alarmExit = LevelServices.FindExit(gameObject.scene);
         float distance = _alarmExit != null ? _alarmExit.position.x - _playerSource.transform.position.x : 0f;
         float duration = _config.GetAlarmDurationSeconds(distance);
         if (!float.IsFinite(duration) || duration <= 0f)

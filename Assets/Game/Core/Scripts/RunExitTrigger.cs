@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [RequireComponent(typeof(Collider)), DisallowMultipleComponent]
-public sealed class RunExitTrigger : MonoBehaviour
+public sealed class RunExitTrigger : MonoBehaviour, ILevelExit
 {
     [SerializeField] private RunSession _session;
     [SerializeField] private Rigidbody _player;

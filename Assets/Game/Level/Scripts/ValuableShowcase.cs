@@ -18,6 +18,11 @@ public class ValuableShowcase : MonoBehaviour
 
     private bool _isBroken = false;
 
+    private void Start()
+    {
+        lootSource = LevelServices.Resolve<ILootInventory>(this, lootSource) as MonoBehaviour;
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (_isBroken) return;
