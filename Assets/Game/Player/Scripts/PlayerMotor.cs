@@ -5,7 +5,7 @@ namespace FunFlow.Player
 {
     /// <summary>
     /// Скольжение шарика по полу XZ: запуск, постоянное замедление, остановка малой скорости,
-    /// запрет движения назад (vx >= 0) и прыжков (Y заморожен).
+    /// запуск только вперёд, короткий отскок назад при столкновении; Y заморожен.
     /// Реализует IPlayerControl для Core; тяжесть берёт из ILootInventory (Loot).
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
@@ -26,8 +26,10 @@ namespace FunFlow.Player
         [SerializeField, Range(0f, 90f)] private float maxLaunchAngle = 77f;
 
         [Header("Столкновения со стенами")]
+        [Tooltip("Доля скорости после отражения от боковой стены, ориентированной вдоль +X. Без ограничения дальности.")]
+        [SerializeField, Range(0f, 1f)] private float sideWallSpeedMultiplier = 0.8f;
         [Tooltip("Доля скорости, теряемая при ударе в лоб (90° к стене).")]
-        [SerializeField, Range(0f, 1f)] private float headOnSpeedLoss = 0.75f;
+        [SerializeField, Range(0f, 1f)] private float headOnSpeedLoss = 0.5f;
         [Tooltip("Доля скорости, теряемая при ударе по касательной (около 0° к стене).")]
         [SerializeField, Range(0f, 1f)] private float glancingSpeedLoss = 0.05f;
         [Tooltip("Отскок: доля скорости в стену, возвращаемая от стены. 0 — только скольжение вдоль неё.")]
@@ -47,6 +49,7 @@ namespace FunFlow.Player
         private float burden;
         private bool controlEnabled = true;
         private bool isMoving;
+        private bool collisionRecoil;
         // Скорость, с которой тело вошло в текущий шаг физики, — до того, как PhysX погасил её о стену.
         private Vector3 stepVelocity;
 
@@ -113,6 +116,7 @@ namespace FunFlow.Player
             if (!CanLaunch || !IsForward(direction)) return false;
 
             stepVelocity = ClampDirection(direction) * LaunchSpeed(power);
+            collisionRecoil = false;
             body.linearVelocity = stepVelocity;
             ClearContacts();
             SetMoving(true);
@@ -156,6 +160,7 @@ namespace FunFlow.Player
             loot = null;
             burden = 0f;
             isMoving = false;
+            collisionRecoil = false;
             stepVelocity = Vector3.zero;
             ClearContacts();
         }
@@ -171,7 +176,7 @@ namespace FunFlow.Player
             Vector3 v = impactContacts > 0 ? ResolveImpact() : body.linearVelocity;
             v.y = 0f;
             for (int i = 0; i < wallNormalCount; i++) v = Constrain(v, wallNormals[i]);
-            if (v.x < 0f) v.x = 0f;
+            if (!collisionRecoil && v.x < 0f) v.x = 0f;
             ClearContacts();
 
             float speed = v.magnitude - Deceleration * Time.fixedDeltaTime;
@@ -180,6 +185,7 @@ namespace FunFlow.Player
                 stepVelocity = Vector3.zero;
                 body.linearVelocity = Vector3.zero;
                 SetMoving(false);
+                collisionRecoil = false;
                 return;
             }
 
@@ -187,31 +193,26 @@ namespace FunFlow.Player
             body.linearVelocity = stepVelocity;
         }
 
-        private void OnCollisionEnter(Collision collision) => CollectContacts(collision, true);
-        private void OnCollisionStay(Collision collision) => CollectContacts(collision, false);
+        private void OnCollisionEnter(Collision collision) => CollectContacts(collision);
+        private void OnCollisionStay(Collision collision) => CollectContacts(collision);
 
-        private void CollectContacts(Collision collision, bool entered)
+        private void CollectContacts(Collision collision)
         {
             if (!isMoving) return;
 
             for (int i = 0; i < collision.contactCount; i++)
             {
                 ContactPoint contact = collision.GetContact(i);
-                Vector3 normal = contact.normal;
-                if (normal.y > 0.5f) continue; // пол
-
-                // Только плоскость XZ: наклон нормали по Y у ребра не должен менять отклик.
-                normal.y = 0f;
-                if (normal.sqrMagnitude < 1e-4f) continue;
-                normal.Normalize();
+                if (!TryWallNormal(contact.normal, out Vector3 normal)) continue;
 
                 float approach = -Vector3.Dot(stepVelocity, normal);
                 if (approach <= 0f) continue; // уже уходит от стены
 
                 if (wallNormalCount < MaxWallNormals) wallNormals[wallNormalCount++] = normal;
 
-                // Потеря скорости — только на входе в контакт; в Stay стена лишь не пускает в себя.
-                if (!entered || approach < minImpactSpeed) continue;
+                // Launching while already touching a wall produces Stay, not Enter.
+                // After reflection approach <= 0, so continuing contact does not bounce twice.
+                if (approach < minImpactSpeed) continue;
 
                 impactNormalSum += normal;
                 impactPointSum += contact.point;
@@ -219,6 +220,15 @@ namespace FunFlow.Player
                 if (impactCollider == null) impactCollider = collision.collider;
                 else if (impactCollider != collision.collider) impactSeveralColliders = true;
             }
+        }
+
+        private static bool TryWallNormal(Vector3 contactNormal, out Vector3 normal)
+        {
+            normal = new Vector3(contactNormal.x, 0f, contactNormal.z);
+            // Low-rim edges have an upward component; only near-horizontal support is floor.
+            if (contactNormal.y > 0.9f || normal.sqrMagnitude < 1e-4f) return false;
+            normal.Normalize();
+            return true;
         }
 
         /// <summary>
@@ -236,11 +246,21 @@ namespace FunFlow.Player
             if (approach <= 0f || approach < minImpactSpeed) return body.linearVelocity;
 
             Vector3 point = impactPointSum / impactContacts;
+            bool sideWall = IsSideWall(normal);
             Vector3 result = Bounce(stepVelocity, normal, approach);
-            if (!impactSeveralColliders)
+            if (!sideWall && !impactSeveralColliders && result.x >= 0f)
             {
                 Vector3 slide = EdgeSlide(normal, point);
                 if (slide.sqrMagnitude > result.sqrMagnitude) result = slide;
+            }
+            if (result.x < 0f)
+            {
+                collisionRecoil = true;
+                if (!sideWall)
+                {
+                    float maxSpeed = Mathf.Sqrt(2f * Deceleration * config.MaxBackwardRecoilDistance);
+                    result = Vector3.ClampMagnitude(result, maxSpeed);
+                }
             }
 
             Collided?.Invoke(point, Mathf.Clamp01(approach / config.MaxLaunchSpeed));
@@ -248,11 +268,12 @@ namespace FunFlow.Player
         }
 
         /// <summary>
-        /// Отскок от стены с потерей скорости по углу удара, затем запрет движения назад.
-        /// Отклик считаем сами, а не через PhysicsMaterial: так потеря и vx ≥ 0 настраиваются в одном месте.
+        /// Отскок от стены с потерей скорости по углу удара. Короткий откат ограничивает ResolveImpact.
+        /// Отклик считаем сами, поэтому новым стенам не нужен специальный PhysicsMaterial.
         /// </summary>
         private Vector3 Bounce(Vector3 velocity, Vector3 normal, float approach)
         {
+            if (IsSideWall(normal)) return Vector3.Reflect(velocity, normal) * sideWallSpeedMultiplier;
             float speed = velocity.magnitude;
             // Синус угла между скоростью и стеной: 1 — в лоб, 0 — по касательной.
             float impact = approach / speed;
@@ -263,12 +284,15 @@ namespace FunFlow.Player
             Vector3 direction = along + normal * (approach * wallBounce);
             if (direction.sqrMagnitude < 1e-6f) return Vector3.zero;
 
-            return KeepForward(direction.normalized * (speed * (1f - loss)), normal);
+            return direction.normalized * (speed * (1f - loss));
         }
 
+        // Classify the actual contact face; newly created walls need no marker or wiring.
+        private static bool IsSideWall(Vector3 normal) => Mathf.Abs(normal.z) > Mathf.Abs(normal.x);
+
         /// <summary>
-        /// Торец или ребро: отскок почти в лоб ушёл бы назад, обнулился запретом vx &lt; 0, и шарик встал бы.
-        /// Вместо этого он соскальзывает вдоль грани — к ближайшему краю или по своей боковой скорости.
+        /// Торец или ребро: дополнительное скольжение вдоль грани, когда нет отскока назад.
+        /// Направление — к ближайшему краю или по своей боковой скорости.
         /// Возвращает ноль, если край дальше edgeProbe (широкая грань).
         /// </summary>
         private Vector3 EdgeSlide(Vector3 normal, Vector3 point)
@@ -293,12 +317,12 @@ namespace FunFlow.Player
         private bool HitsImpactCollider(Vector3 origin, Vector3 normal, float reach) =>
             impactCollider.Raycast(new Ray(origin, -normal), out _, reach);
 
-        /// <summary>Убирает скорость в стену (без потери), затем vx ≥ 0.</summary>
-        private static Vector3 Constrain(Vector3 velocity, Vector3 normal)
+        /// <summary>Убирает скорость в стену, сохраняя разрешённый столкновением отскок.</summary>
+        private Vector3 Constrain(Vector3 velocity, Vector3 normal)
         {
             float into = Vector3.Dot(velocity, normal);
             if (into < 0f) velocity -= normal * into;
-            return KeepForward(velocity, normal);
+            return collisionRecoil ? velocity : KeepForward(velocity, normal);
         }
 
         /// <summary>vx ≥ 0 и не в стену: иначе шарик прилипает к ней или застревает в углу.</summary>

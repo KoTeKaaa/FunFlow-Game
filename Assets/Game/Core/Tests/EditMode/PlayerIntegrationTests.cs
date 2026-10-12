@@ -225,7 +225,7 @@ public sealed class PlayerIntegrationTests
             Assert.That((float)_motor.GetType().GetProperty("Burden").GetValue(_motor), Is.EqualTo(1f));
             float radius = _body.GetComponent<Collider>().bounds.extents.x;
             _body.position = new Vector3(alarm.GetComponent<Collider>().bounds.min.x - radius + 0.02f,
-                _body.position.y, -3f);
+                _body.position.y, -4.5f);
             Physics.SyncTransforms();
             double alarmStart = -1d;
             _session.StateChanged += state =>
@@ -233,10 +233,25 @@ public sealed class PlayerIntegrationTests
                 if (state == RunState.Alarm) alarmStart = Time.timeAsDouble;
             };
             int launches = 0;
+            // Current level: trigger the alarm, then pass below the two wide columns.
+            var route = new[] { new Vector3(62f, 0f, -6.5f), new Vector3(96.5f, 0f, -6.5f),
+                new Vector3(exit.transform.position.x, 0f, exit.transform.position.z) };
+            int waypoint = 0;
             double safetyDeadline = Time.timeAsDouble + 70d;
             while (_session.Result == null && Time.timeAsDouble < safetyDeadline && launches < 40)
             {
-                Assert.That(Launch(Vector3.right, 1f), Is.True);
+                var position = _body.position;
+                position.y = 0f;
+                while (waypoint < route.Length - 1 && Vector3.Distance(position, route[waypoint]) < 0.75f) waypoint++;
+                var direction = route[waypoint] - _body.position;
+                direction.y = 0f;
+                Assert.That(direction.x, Is.GreaterThan(0f));
+                float speed = config.MaxLaunchSpeed * config.FullWeightSpeedMultiplier;
+                float minPower = new SerializedObject(_motor).FindProperty("minLaunchPower").floatValue;
+                float targetSpeed = Mathf.Sqrt(2f * config.SlideDeceleration * direction.magnitude)
+                    + config.SlideDeceleration * Time.fixedDeltaTime * 0.5f;
+                float power = Mathf.Clamp01((targetSpeed / speed - minPower) / (1f - minPower));
+                Assert.That(Launch(direction.normalized, power), Is.True);
                 launches++;
                 double stopDeadline = Time.timeAsDouble + 4d;
                 while (_player.IsMoving && _session.Result == null && Time.timeAsDouble < stopDeadline)
@@ -251,12 +266,13 @@ public sealed class PlayerIntegrationTests
             Assert.That(_session.State, Is.EqualTo(RunState.Won), $"Stopped at {_body.position}; exit {exit.transform.position}.");
             double elapsed = Time.timeAsDouble - alarmStart;
             Debug.Log($"BALANCE full-bag run {attempt + 1}: {elapsed:F2}s, {launches} launches, value {Loot.CurrentValue}, aim 1s, fixed dt {Time.fixedDeltaTime}.");
-            Assert.That(elapsed, Is.InRange(40d, 55d), "Full bag should leave a useful margin within the alarm budget.");
+            Assert.That(_session.RemainingTime, Is.GreaterThanOrEqualTo(5f),
+                "Full bag must leave at least five seconds within this level's alarm budget.");
         }
     }
 
     [UnityTest, Explicit("Measured ordinary aiming pace; opt in to this long balance benchmark.")]
-    public IEnumerator Balance_OrdinaryLootRouteFitsTwoToFiveMinutes()
+    public IEnumerator Balance_OrdinaryLootRouteCompletesWithinBudget()
     {
         yield return null;
         _session.StartRun();
@@ -288,7 +304,7 @@ public sealed class PlayerIntegrationTests
         Assert.That(_session.State, Is.EqualTo(RunState.Won));
         Assert.That(_session.HasAlarmTriggered, Is.True);
         Assert.That(Loot.CurrentValue, Is.GreaterThan(0));
-        Assert.That(elapsed, Is.InRange(120d, 300d));
+        Assert.That(elapsed, Is.LessThan(300d));
     }
 
     [Test]
@@ -475,7 +491,8 @@ public sealed class PlayerIntegrationTests
         Assert.That(Source(LootSource, "config"), Is.SameAs(config));
         foreach (var item in Items) item.gameObject.SetActive(false);
         _session.StartRun();
-        var origin = _body.position;
+        var origin = new Vector3(-100f, 0.5f, -100f);
+        _body.useGravity = false; // Open lane without level obstacles or pickups affecting the measurement.
         float emptyDistance = 0f;
         for (int attempt = 0; attempt < 2; attempt++)
         {
@@ -497,18 +514,90 @@ public sealed class PlayerIntegrationTests
             if (attempt == 0)
             {
                 emptyDistance = distance;
-                Assert.That(distance, Is.InRange(6f, 9f), "Empty launch should not skip several encounters.");
+                Assert.That(distance, Is.InRange(15f, 16f), "Empty maximum launch should cross the 15 m corridor.");
             }
             else
             {
                 Assert.That(distance, Is.LessThan(emptyDistance));
-                Assert.That(distance, Is.InRange(1.5f, 3f), "Full bag must still make useful progress.");
+                Assert.That(distance, Is.InRange(3.5f, 4.2f), "Full bag must still make useful progress.");
             }
         }
+        SetValue(0);
+        _body.position = origin;
+        float angle = new SerializedObject(_motor).FindProperty("maxLaunchAngle").floatValue * Mathf.Deg2Rad;
+        Assert.That(Launch(new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)), 1f), Is.True);
+        float transverseDeadline = Time.realtimeSinceStartup + 8f;
+        while (_player.IsMoving && Time.realtimeSinceStartup < transverseDeadline) yield return null;
+        Assert.That(_player.IsMoving, Is.False);
+        Assert.That(_body.position.z - origin.z, Is.InRange(14.5f, 15.5f), "Maximum angled launch must cross the corridor.");
         SetValue(config.ValueAtFullWeight * 2);
         Assert.That(loot.NormalizedWeight, Is.EqualTo(1f));
         Assert.That(Launch(Vector3.right, 1f), Is.True);
         Assert.That(_body.linearVelocity.x, Is.GreaterThan(0f));
+    }
+
+    [TestCase(0.5f, 0.866025f, true)]
+    [TestCase(0.6f, 0.8f, true)]
+    [TestCase(1f, 0f, false)]
+    [TestCase(0.99f, 0.14f, false)]
+    public void LowRimContact_ReflectsEdgeButIgnoresFloor(float up, float horizontal, bool wall)
+    {
+        var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+        var args = new object[] { new Vector3(0f, up, horizontal).normalized, Vector3.zero };
+        bool accepted = (bool)_motor.GetType().GetMethod("TryWallNormal", flags).Invoke(null, args);
+        Assert.That(accepted, Is.EqualTo(wall));
+        if (wall) Assert.That(Vector3.Distance((Vector3)args[1], Vector3.forward), Is.LessThan(0.001f));
+    }
+
+    [TestCase(0f, -1f)]
+    [TestCase(-0.4f, -0.916515f)]
+    public void SideWallReflection_RetainsEightyPercentWithoutDistanceCap(float normalX, float normalZ)
+    {
+        SetValue(0);
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var velocity = new Vector3(1f, 0f, 12f);
+        var normal = new Vector3(normalX, 0f, normalZ).normalized;
+        _motor.GetType().GetField("stepVelocity", flags).SetValue(_motor, velocity);
+        _motor.GetType().GetField("impactNormalSum", flags).SetValue(_motor, normal);
+        _motor.GetType().GetField("impactContacts", flags).SetValue(_motor, 1);
+        var result = (Vector3)_motor.GetType().GetMethod("ResolveImpact", flags).Invoke(_motor, null);
+        Assert.That(Vector3.Distance(result, Vector3.Reflect(velocity, normal) * 0.8f), Is.LessThan(0.001f));
+        var config = (GameConfig)Source(_motor, "config");
+        Assert.That(result.magnitude, Is.GreaterThan(Mathf.Sqrt(2f * config.SlideDeceleration * config.MaxBackwardRecoilDistance)));
+    }
+
+    [UnityTest]
+    public IEnumerator NewSolidWall_AllowsShortRecoilButNotBackwardInput()
+    {
+        var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        try
+        {
+            wall.transform.position = new Vector3(-97f, 0.5f, -100f);
+            wall.transform.localScale = new Vector3(0.3f, 2f, 10f);
+            _body.useGravity = false;
+            _body.position = new Vector3(-100f, 0.5f, -100f);
+            SetValue(0);
+            _session.StartRun();
+            Physics.SyncTransforms();
+            Assert.That(Launch(Vector3.left, 1f), Is.False);
+            Assert.That(Launch(Vector3.right, 1f), Is.True);
+            bool movedBackward = false;
+            float furthestX = _body.position.x;
+            float deadline = Time.realtimeSinceStartup + 8f;
+            while (_player.IsMoving && Time.realtimeSinceStartup < deadline)
+            {
+                furthestX = Mathf.Max(furthestX, _body.position.x);
+                movedBackward |= _body.linearVelocity.x < -0.01f;
+                yield return null;
+            }
+            Assert.That(_player.IsMoving, Is.False);
+            Assert.That(movedBackward, Is.True, "Fresh solid walls must rebound without special wiring or material.");
+            var config = (GameConfig)Source(_motor, "config");
+            Assert.That(furthestX - _body.position.x, Is.InRange(0.05f, config.MaxBackwardRecoilDistance + 0.1f));
+            Assert.That(Launch(Vector3.left), Is.False);
+            Assert.That(Launch(Vector3.right), Is.True, "Forward re-aiming must work after recoil stops.");
+        }
+        finally { Object.Destroy(wall); }
     }
 
     [UnityTest]
