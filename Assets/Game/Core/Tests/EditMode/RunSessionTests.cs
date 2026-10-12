@@ -36,6 +36,60 @@ public sealed class RunSessionTests
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
+    private LevelAlarmSettings LevelTimer(float duration)
+    {
+        var obj = new GameObject("Level timer");
+        obj.transform.SetParent(_root.transform);
+        var settings = obj.AddComponent<LevelAlarmSettings>();
+        var data = new SerializedObject(settings);
+        data.FindProperty("_alarmDurationSeconds").floatValue = duration;
+        data.ApplyModifiedPropertiesWithoutUndo();
+        return settings;
+    }
+
+    [TestCase(20f)]
+    [TestCase(90f)]
+    public void LevelAlarm_OverridesGlobalBudgetAndFreezesFirstDeadline(float duration)
+    {
+        var settings = LevelTimer(duration);
+        _root.SetActive(true);
+        _session.StartRun();
+        _session.TriggerAlarm();
+        Assert.That(_session.RemainingTime, Is.EqualTo(duration));
+        double deadline = Deadline;
+        var data = new SerializedObject(settings);
+        data.FindProperty("_alarmDurationSeconds").floatValue = duration * 2;
+        data.ApplyModifiedPropertiesWithoutUndo();
+        _session.TriggerAlarm();
+        Assert.That(Deadline, Is.EqualTo(deadline));
+    }
+
+    [TestCase(0f)]
+    [TestCase(float.NaN)]
+    public void LevelAlarm_RejectsInvalidDurationInsteadOfUsingFallback(float duration)
+    {
+        var settings = LevelTimer(duration);
+        Assert.That(LevelValidator.Validate(new[] { _root }, false), Is.Not.Empty);
+        _root.SetActive(true);
+        _session.StartRun();
+        LogAssert.Expect(LogType.Error, "RunSession: alarm duration must be positive and finite.");
+        _session.TriggerAlarm();
+        Assert.That(_session.State, Is.EqualTo(RunState.Playing));
+    }
+
+    [Test]
+    public void LevelAlarm_RejectsAmbiguousTimers()
+    {
+        LevelTimer(30f);
+        LevelTimer(50f);
+        _root.SetActive(true);
+        _session.StartRun();
+        LogAssert.Expect(LogType.Error, "RunSession: expected at most one active LevelAlarmSettings in this scene.");
+        _session.TriggerAlarm();
+        Assert.That(_session.HasAlarmTriggered, Is.False);
+        Assert.That(LevelValidator.Validate(new[] { _root }, false), Is.Not.Empty);
+    }
+
     [TestCase(-10f, 60f)]
     [TestCase(45f, 60f)]
     [TestCase(100f, 120f)]
@@ -273,7 +327,7 @@ public sealed class RunSessionTests
         Assign("_config", null);
         _root.SetActive(true);
         _session.StartRun();
-        LogAssert.Expect(LogType.Error, "RunSession: assign GameConfig with a positive finite alarm duration.");
+        LogAssert.Expect(LogType.Error, "RunSession: alarm duration must be positive and finite.");
         _session.TriggerAlarm();
         Assert.That(_session.State, Is.EqualTo(RunState.Playing));
         Assert.That(_session.HasAlarmTriggered, Is.False);

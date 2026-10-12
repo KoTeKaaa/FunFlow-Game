@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -7,7 +8,7 @@ public sealed class RunSession : MonoBehaviour, IRunSession, IRunPause
     [SerializeField] private MonoBehaviour _playerSource;
     [SerializeField] private MonoBehaviour _lootSource;
     [SerializeField] private GameConfig _config;
-    [Tooltip("Exit of this level; alarm budget scales with remaining distance along +X. Optional in isolated tests.")]
+    [Tooltip("Legacy distance-based alarm budget when LevelAlarmSettings is absent. Exit is discovered automatically.")]
     [SerializeField] private Transform _alarmExit;
     private readonly RunStateMachine _run = new RunStateMachine();
     private IPlayerControl _player;
@@ -56,19 +57,21 @@ public sealed class RunSession : MonoBehaviour, IRunSession, IRunPause
         if (!isActiveAndEnabled || _restarting || _paused || State != RunState.Playing || !ValidateSources())
             return;
 
-        if (_config == null || !float.IsFinite(_config.AlarmDurationSeconds) || _config.AlarmDurationSeconds <= 0f)
+        var settings = LevelServices.Components(gameObject.scene).OfType<LevelAlarmSettings>()
+            .Where(c => c.isActiveAndEnabled).ToArray();
+        if (settings.Length > 1)
         {
-            Debug.LogError("RunSession: assign GameConfig with a positive finite alarm duration.", this);
+            Debug.LogError("RunSession: expected at most one active LevelAlarmSettings in this scene.", this);
             return;
         }
-
-        if (_alarmExit == null)
-            _alarmExit = LevelServices.FindExit(gameObject.scene);
+        // Preserve distance-based budgets for old scenes and isolated fixtures only.
+        if (_alarmExit == null) _alarmExit = LevelServices.FindExit(gameObject.scene);
         float distance = _alarmExit != null ? _alarmExit.position.x - _playerSource.transform.position.x : 0f;
-        float duration = _config.GetAlarmDurationSeconds(distance);
+        float duration = settings.Length == 1 ? settings[0].AlarmDurationSeconds
+            : _config != null ? _config.GetAlarmDurationSeconds(distance) : float.NaN;
         if (!float.IsFinite(duration) || duration <= 0f)
         {
-            Debug.LogError("RunSession: alarm distance budget must be positive and finite.", this);
+            Debug.LogError("RunSession: alarm duration must be positive and finite.", this);
             return;
         }
 
