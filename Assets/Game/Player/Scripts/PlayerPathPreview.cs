@@ -3,15 +3,18 @@ using UnityEngine;
 namespace FunFlow.Player
 {
     /// <summary>
-    /// Предпросмотр пути по полу во время оттягивания: прямая на длину скольжения с учётом силы и тяжести,
-    /// обрезанная до первого препятствия, и маркер точки остановки. Не воздушная траектория.
+    /// Предпросмотр пути по полу во время оттягивания: пунктир из «бегущих» точек на длину скольжения с учётом силы
+    /// и тяжести, обрезанный до первого препятствия. Видна только начальная доля пути. Не воздушная траектория.
     /// </summary>
     public class PlayerPathPreview : MonoBehaviour
     {
         [SerializeField] private PlayerLaunchInput launchInput;
         [SerializeField] private PlayerMotor motor;
+        [Tooltip("Линия с материалом точки: Texture Mode = Tile, выравнивание по полу.")]
         [SerializeField] private LineRenderer line;
         [SerializeField] private Transform stopMarker;
+        [Tooltip("Показывать маркер точки остановки (только если остановка попадает в видимую часть пути).")]
+        [SerializeField] private bool showStopMarker;
         [Tooltip("Чуть меньше радиуса шарика, чтобы каст не цеплял пол.")]
         [SerializeField, Min(0.01f)] private float castRadius = 0.48f;
         [SerializeField] private LayerMask obstacleMask = ~(1 << 2);
@@ -20,22 +23,40 @@ namespace FunFlow.Player
         [Tooltip("Высота линии и маркера над полом, м.")]
         [SerializeField, Min(0f)] private float floorOffset = 0.02f;
 
-        [Header("Вид от силы")]
-        [Tooltip("Цвет линии при самом слабом запуске — бледный.")]
-        [SerializeField] private Color weakColor = new Color(1f, 0.96f, 0.82f);
-        [Tooltip("Цвет линии при полной силе — яркий.")]
-        [SerializeField] private Color fullColor = new Color(1f, 0.6f, 0.05f);
-        [Tooltip("Толщина линии при самом слабом запуске, м.")]
-        [SerializeField, Min(0.001f)] private float weakWidth = 0.05f;
-        [Tooltip("Толщина линии при полной силе, м.")]
-        [SerializeField, Min(0.001f)] private float fullWidth = 0.18f;
+        [Header("Пунктир")]
+        [Tooltip("Какая доля полного пути видна: остальное игрок угадывает сам. Стена ближе — линия кончается на ней.")]
+        [SerializeField, Range(0.2f, 1f)] private float visibleFraction = 0.75f;
+        [Tooltip("Длина одного штриха вместе с промежутком, м.")]
+        [SerializeField, Min(0.05f)] private float dotSpacing = 0.5f;
+        [Tooltip("Скорость «бега» точек вперёд по пути, м/с.")]
+        [SerializeField, Min(0f)] private float dotRunSpeed = 1.2f;
+        [Tooltip("Ширина пунктира у шарика, м.")]
+        [SerializeField, Min(0.001f)] private float startWidth = 0.45f;
+        [Tooltip("Ширина пунктира в конце видимой части, м.")]
+        [SerializeField, Min(0.001f)] private float endWidth = 0.2f;
+        [Tooltip("Непрозрачность в конце видимой части (у шарика — полная).")]
+        [SerializeField, Range(0f, 1f)] private float endAlpha = 0.3f;
 
+        [Tooltip("Яркость пунктира: больше 1 — светится через Bloom.")]
+        [SerializeField, Range(1f, 4f)] private float glow = 1.8f;
+
+        [Header("Цвет от силы")]
+        [Tooltip("Цвет пунктира и резинки по силе оттягивания: слева — самый слабый запуск, справа — полная сила.")]
+        [SerializeField] private Gradient powerColors = DefaultPowerColors();
+
+        private static readonly int BaseMapStId = Shader.PropertyToID("_BaseMap_ST");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private MaterialPropertyBlock lineProperties;
 
         /// <summary>Точка остановки по предпросмотру (центр шарика); валидна, пока предпросмотр виден.</summary>
         public Vector3 PredictedStop { get; private set; }
+        /// <summary>Начало видимой части пути (центр шарика).</summary>
+        public Vector3 VisibleStart { get; private set; }
+        /// <summary>Конец видимой части пути (центр шарика); валиден, пока предпросмотр виден.</summary>
+        public Vector3 VisibleEnd { get; private set; }
         public bool IsVisible => line.enabled;
+        /// <summary>Цвет текущей силы оттягивания; общий для пунктира и резинки.</summary>
+        public Color PowerColor => powerColors.Evaluate(launchInput.AimPower);
 
         private void OnDisable() => SetVisible(false);
 
@@ -50,34 +71,73 @@ namespace FunFlow.Player
             Vector3 origin = motor.transform.position;
             Vector3 direction = launchInput.AimDirection;
             float distance = motor.SlideDistance(launchInput.AimPower);
+            // Слабый запуск: хотя бы одна точка за краем шарика, иначе весь пунктир спрятан под ним.
+            float visibleDistance = Mathf.Max(distance * visibleFraction, ballRadius + dotSpacing);
 
             if (Physics.SphereCast(origin, castRadius, direction, out RaycastHit hit, distance,
                     obstacleMask, QueryTriggerInteraction.Ignore))
                 distance = hit.distance;
 
+            visibleDistance = Mathf.Min(visibleDistance, distance);
             PredictedStop = origin + direction * distance;
+            VisibleStart = origin;
+            VisibleEnd = origin + direction * visibleDistance;
 
             Vector3 floorShift = Vector3.down * (ballRadius - floorOffset);
             line.SetPosition(0, origin + floorShift);
-            line.SetPosition(1, PredictedStop + floorShift);
-            ApplyPowerLook(launchInput.AimPower);
+            line.SetPosition(1, VisibleEnd + floorShift);
+            ApplyLook(launchInput.AimPower);
+
+            bool markerVisible = showStopMarker && visibleDistance >= distance;
             stopMarker.SetPositionAndRotation(PredictedStop + floorShift, Quaternion.identity);
             SetVisible(true);
+            SetMarkerVisible(markerVisible);
         }
 
-        /// <summary>Только вид линии: цвет через MaterialPropertyBlock, общий материал не меняется.</summary>
-        private void ApplyPowerLook(float power)
+        /// <summary>Только вид линии: цвет и ширина через вершины, сдвиг точек через MaterialPropertyBlock.</summary>
+        private void ApplyLook(float power)
         {
-            line.widthMultiplier = Mathf.Lerp(weakWidth, fullWidth, power);
+            Color color = powerColors.Evaluate(power);
+            line.startColor = new Color(color.r, color.g, color.b, 1f);
+            line.endColor = new Color(color.r, color.g, color.b, endAlpha);
+            line.widthMultiplier = 1f;
+            line.startWidth = startWidth;
+            line.endWidth = endWidth;
+
+            // Tile: одна точка текстуры на 1 / textureScale метров. Сдвиг назад по текстуре = точки бегут вперёд.
+            float tiling = 1f / dotSpacing;
+            line.textureScale = new Vector2(tiling, 1f);
+            float offset = -Mathf.Repeat(Time.time * dotRunSpeed * tiling, 1f);
             lineProperties ??= new MaterialPropertyBlock();
             line.GetPropertyBlock(lineProperties);
-            lineProperties.SetColor(BaseColorId, Color.Lerp(weakColor, fullColor, power));
+            lineProperties.SetVector(BaseMapStId, new Vector4(1f, 1f, offset, 0f));
+            // Цвет вершин ограничен 0..1, поэтому яркость сверх 1 — множителем материала.
+            lineProperties.SetColor(BaseColorId, new Color(glow, glow, glow, 1f));
             line.SetPropertyBlock(lineProperties);
+        }
+
+        private static Gradient DefaultPowerColors()
+        {
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(0.35f, 1f, 0.45f), 0f),
+                    new GradientColorKey(new Color(1f, 0.85f, 0.15f), 0.5f),
+                    new GradientColorKey(new Color(1f, 0.2f, 0.1f), 1f)
+                },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+            return gradient;
         }
 
         private void SetVisible(bool visible)
         {
             if (line.enabled != visible) line.enabled = visible;
+            if (!visible) SetMarkerVisible(false);
+        }
+
+        private void SetMarkerVisible(bool visible)
+        {
             if (stopMarker.gameObject.activeSelf != visible) stopMarker.gameObject.SetActive(visible);
         }
     }
