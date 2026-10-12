@@ -10,6 +10,16 @@ public class DifficultyLevelBuilder : EditorWindow
     private GameObject alarmPrefab;
     private GameObject showcasePrefab;
 
+    private void OnEnable()
+    {
+        const string folder = "Assets/Game/Level/Prefabs/Elements/";
+        if (obstaclePrefab == null) obstaclePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "Obstacle.prefab");
+        if (lootPrefab == null) lootPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "loot.prefab");
+        if (cutterPrefab == null) cutterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "CutterTrap.prefab");
+        if (alarmPrefab == null) alarmPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "AlarmZone.prefab");
+        if (showcasePrefab == null) showcasePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(folder + "Showcase_BigLoot.prefab");
+    }
+
     [MenuItem("Tools/FunFlow/Build Level by Difficulty")]
     public static void ShowWindow()
     {
@@ -61,6 +71,8 @@ public class DifficultyLevelBuilder : EditorWindow
         }
 
         if (prefabStage != null) EditorSceneManager.MarkSceneDirty(prefabStage.scene);
+        foreach (var issue in LevelValidator.Validate(new[] { container }, false))
+            Debug.LogError("Generated track: " + issue.Message, issue.Context);
     }
 
     // ==========================================
@@ -157,6 +169,6 @@ public class DifficultyLevelBuilder : EditorWindow
     private void Spawn(GameObject prefab, Transform parent, float x, float z)
     {
         GameObject newObj = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-        newObj.transform.localPosition = new Vector3(x, 1f, z); 
+        newObj.transform.localPosition = new Vector3(x, prefab.transform.localPosition.y, z);
     }
 }

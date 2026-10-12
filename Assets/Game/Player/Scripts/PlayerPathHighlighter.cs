@@ -6,18 +6,15 @@ namespace FunFlow.Player
 {
     /// <summary>
     /// Только визуал: подсветка объектов на ВИДИМОЙ части предпросмотра пути в коридоре шириной с шарик.
-    /// Добыча слегка мерцает, ловушки и сигнальные плиты светятся красным. Объекты ищутся по слоям, их материалы,
+    /// Добыча слегка мерцает, ловушки и сигнальные плиты светятся красным. Объекты определяются по контракту, их материалы,
     /// рендереры и логика не меняются: поверх рисуется светящаяся оболочка из их же мешей.
     /// </summary>
+    [DefaultExecutionOrder(100)]
     public class PlayerPathHighlighter : MonoBehaviour
     {
         [SerializeField] private PlayerPathPreview preview;
         [Tooltip("Аддитивный прозрачный материал оболочки (цвет задаётся через _BaseColor).")]
         [SerializeField] private Material glowMaterial;
-        [Tooltip("Слои добычи: монеты и витрины.")]
-        [SerializeField] private LayerMask lootMask = 1 << 11;
-        [Tooltip("Слои опасностей: сигнальные плиты и резаки.")]
-        [SerializeField] private LayerMask hazardMask = (1 << 13) | (1 << 14);
         [Tooltip("Радиус коридора — радиус шарика, м.")]
         [SerializeField, Min(0.01f)] private float corridorRadius = 0.5f;
 
@@ -35,15 +32,14 @@ namespace FunFlow.Player
         [Tooltip("Насколько оболочка больше объекта: 1.06 — на 6%.")]
         [SerializeField, Range(1f, 1.3f)] private float shellScale = 1.06f;
 
-        private const int MaxHits = 32;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
-        private readonly RaycastHit[] hits = new RaycastHit[MaxHits];
-        private readonly Collider[] overlaps = new Collider[MaxHits];
-        private readonly HashSet<Collider> lootTargets = new HashSet<Collider>();
-        private readonly HashSet<Collider> hazardTargets = new HashSet<Collider>();
-        // Меши под коллайдером ищем один раз: GetComponentsInChildren каждый кадр — лишний мусор.
-        private readonly Dictionary<Collider, MeshFilter[]> meshesByCollider = new Dictionary<Collider, MeshFilter[]>();
+        private Collider[] overlaps = new Collider[32];
+        private readonly HashSet<MonoBehaviour> lootTargets = new HashSet<MonoBehaviour>();
+        private readonly HashSet<MonoBehaviour> hazardTargets = new HashSet<MonoBehaviour>();
+        private readonly List<MonoBehaviour> components = new List<MonoBehaviour>();
+        private readonly List<MeshFilter> meshes = new List<MeshFilter>();
+        private readonly HashSet<MeshFilter> drawnMeshes = new HashSet<MeshFilter>();
         private MaterialPropertyBlock lootProperties;
         private MaterialPropertyBlock hazardProperties;
 
@@ -51,18 +47,17 @@ namespace FunFlow.Player
         {
             lootTargets.Clear();
             hazardTargets.Clear();
-            meshesByCollider.Clear();
+            drawnMeshes.Clear();
         }
 
         private void LateUpdate()
         {
             lootTargets.Clear();
             hazardTargets.Clear();
-            if (!preview.IsVisible || glowMaterial == null) return;
+            if (preview == null || !preview.IsVisible || glowMaterial == null) return;
 
-            Collect(lootMask, lootTargets);
-            Collect(hazardMask, hazardTargets);
-            // Ловушка важнее: объект на обоих слоях светится красным.
+            Collect(preview.VisibleStart, preview.VisibleEnd);
+            // Опасность важнее при нескольких игровых компонентах на одном объекте.
             lootTargets.ExceptWith(hazardTargets);
 
             lootProperties ??= new MaterialPropertyBlock();
@@ -71,28 +66,40 @@ namespace FunFlow.Player
             lootProperties.SetColor(BaseColorId, lootColor * (lootIntensity * flicker));
             hazardProperties.SetColor(BaseColorId, hazardColor * hazardIntensity);
 
-            Draw(lootTargets, lootProperties);
             Draw(hazardTargets, hazardProperties);
+            Draw(lootTargets, lootProperties);
         }
 
-        private void Collect(LayerMask mask, HashSet<Collider> targets)
+        private void Collect(Vector3 start, Vector3 end)
         {
-            Vector3 start = preview.VisibleStart;
-            Vector3 path = preview.VisibleEnd - start;
-            float length = path.magnitude;
-
-            // Каст не видит то, что уже пересекает сферу в начале, поэтому отдельно проверяем точку старта.
-            int overlapCount = Physics.OverlapSphereNonAlloc(start, corridorRadius, overlaps, mask,
-                QueryTriggerInteraction.Collide);
-            for (int i = 0; i < overlapCount; i++) targets.Add(overlaps[i]);
-
-            if (length < 0.001f) return;
-            int hitCount = Physics.SphereCastNonAlloc(start, corridorRadius, path / length, hits, length, mask,
-                QueryTriggerInteraction.Collide);
-            for (int i = 0; i < hitCount; i++) targets.Add(hits[i].collider);
+            lootTargets.Clear();
+            hazardTargets.Clear();
+            drawnMeshes.Clear();
+            int count;
+            while (true)
+            {
+                count = Physics.OverlapCapsuleNonAlloc(start, end, corridorRadius, overlaps,
+                    Physics.AllLayers, QueryTriggerInteraction.Collide);
+                if (count < overlaps.Length) break;
+                System.Array.Resize(ref overlaps, overlaps.Length * 2);
+            }
+            for (int i = 0; i < count; i++)
+            {
+                if (overlaps[i].gameObject.scene != gameObject.scene) continue;
+                components.Clear();
+                overlaps[i].GetComponentsInParent(false, components);
+                foreach (var component in components)
+                {
+                    if (component is not IPathHighlightTarget target || !component.isActiveAndEnabled || !target.CanHighlight) continue;
+                    // A guard's vision sensor is not its body; never tint the whole guard from a cone trigger.
+                    if (target.HighlightKind == PathHighlightKind.Guard && overlaps[i].isTrigger) continue;
+                    (target.HighlightKind == PathHighlightKind.Loot ? lootTargets : hazardTargets).Add(component);
+                    break;
+                }
+            }
         }
 
-        private void Draw(HashSet<Collider> targets, MaterialPropertyBlock properties)
+        private void Draw(HashSet<MonoBehaviour> targets, MaterialPropertyBlock properties)
         {
             var renderParams = new RenderParams(glowMaterial)
             {
@@ -102,11 +109,14 @@ namespace FunFlow.Player
                 layer = gameObject.layer
             };
 
-            foreach (Collider target in targets)
+            foreach (MonoBehaviour target in targets)
             {
-                foreach (MeshFilter filter in MeshesOf(target))
+                meshes.Clear();
+                target.GetComponentsInChildren(false, meshes);
+                foreach (MeshFilter filter in meshes)
                 {
                     if (filter == null || filter.sharedMesh == null) continue;
+                    if (!drawnMeshes.Add(filter)) continue;
                     var meshRenderer = filter.GetComponent<MeshRenderer>();
                     if (meshRenderer == null || !meshRenderer.enabled || !filter.gameObject.activeInHierarchy) continue;
 
@@ -121,14 +131,5 @@ namespace FunFlow.Player
             }
         }
 
-        private MeshFilter[] MeshesOf(Collider target)
-        {
-            if (!meshesByCollider.TryGetValue(target, out MeshFilter[] filters))
-            {
-                filters = target.GetComponentsInChildren<MeshFilter>(true);
-                meshesByCollider[target] = filters;
-            }
-            return filters;
-        }
     }
 }

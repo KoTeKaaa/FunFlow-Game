@@ -71,7 +71,7 @@ public class LevelPopulator : EditorWindow
             float randomZ = Random.Range(-corridorWidth / 2f, corridorWidth / 2f);
             
             GameObject newObj = (GameObject)PrefabUtility.InstantiatePrefab(itemPrefab, container.transform);
-            newObj.transform.localPosition = new Vector3(randomX, 1f, randomZ);
+            newObj.transform.localPosition = new Vector3(randomX, itemPrefab.transform.localPosition.y, randomZ);
         }
         
         Debug.Log($"Сгенерировано {count} объектов внутри '{container.name}'");

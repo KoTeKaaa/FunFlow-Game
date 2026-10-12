@@ -18,7 +18,7 @@ public enum GuardTurnMode
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
-public class Guard : MonoBehaviour
+public class Guard : MonoBehaviour, IPathHighlightTarget
 {
     // Запас радиуса поиска: шарик мог за шаг физики выйти за дальность, но пересечь конус.
     private const float SearchMargin = 5f;
@@ -27,7 +27,7 @@ public class Guard : MonoBehaviour
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
     [Header("Тревога")]
-    [Tooltip("Объект Core с RunSession (GameRoot в сцене уровня) — тот же, что у сигнальных плит AlarmTrap. Назначается в сцене.")]
+    [Tooltip("Источник IRunSession (GameRoot). Пустая ссылка автоматически подключается к единственному Core в этой сцене.")]
     [SerializeField] private MonoBehaviour coreSessionSource;
 
     [Header("Зрение")]
@@ -111,6 +111,8 @@ public class Guard : MonoBehaviour
 
     /// <summary>Охранник уже заметил вора в этой попытке.</summary>
     public bool HasSpottedThief => _spotted;
+    public PathHighlightKind HighlightKind => PathHighlightKind.Guard;
+    public bool CanHighlight => true;
 
     /// <summary>Текущий угол поворота относительно направления установки, градусов.</summary>
     public float CurrentYaw => ViewYaw;
@@ -216,11 +218,8 @@ public class Guard : MonoBehaviour
             return;
 
         _session = s_playSession;
-        _runSession = coreSessionSource as IRunSession;
-        if (coreSessionSource == null)
-            Debug.LogWarning($"{name}: не назначен Core Session Source — охранник видит вора, но тревогу не включит.", this);
-        else if (_runSession == null)
-            Debug.LogError($"{name}: Core Session Source не реализует IRunSession.", this);
+        _runSession = LevelServices.Resolve<IRunSession>(this, coreSessionSource);
+        coreSessionSource = _runSession as MonoBehaviour;
 
         _yaw = InitialYaw;
         _phase = Phase.Delay;

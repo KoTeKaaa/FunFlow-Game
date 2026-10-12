@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-public class ValuableShowcase : MonoBehaviour
+public class ValuableShowcase : MonoBehaviour, IPathHighlightTarget
 {
     [Header("Настройки")]
     [Tooltip("Награда за кувшин (в прототипе 320)")]
@@ -17,6 +17,8 @@ public class ValuableShowcase : MonoBehaviour
     public UnityEvent<Vector3> Broken = new UnityEvent<Vector3>();
 
     private bool _isBroken = false;
+    public PathHighlightKind HighlightKind => PathHighlightKind.Loot;
+    public bool CanHighlight => !_isBroken;
 
     private void Start()
     {
