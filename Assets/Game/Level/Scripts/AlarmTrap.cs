@@ -1,10 +1,12 @@
 using UnityEngine;
 
-public class AlarmTrap : MonoBehaviour
+public class AlarmTrap : MonoBehaviour, IPathHighlightTarget
 {
     [SerializeField] private MonoBehaviour coreSessionSource;
     private IRunSession runSession;
     private bool _isUsed = false;
+    public PathHighlightKind HighlightKind => PathHighlightKind.Hazard;
+    public bool CanHighlight => !_isUsed;
 
     private void Start()
     {

@@ -21,7 +21,7 @@ namespace FunFlow.Player
         [Tooltip("Радиус шарика: от центра до пола, м.")]
         [SerializeField, Min(0.01f)] private float ballRadius = 0.5f;
         [Tooltip("Высота линии и маркера над полом, м.")]
-        [SerializeField, Min(0f)] private float floorOffset = 0.02f;
+        [SerializeField, Min(0f)] private float floorOffset = 0.06f;
 
         [Header("Пунктир")]
         [Tooltip("Какая доля полного пути видна: остальное игрок угадывает сам. Стена ближе — линия кончается на ней.")]

@@ -84,6 +84,34 @@ public sealed class LevelIntegrationTests
     [UnityTest] public IEnumerator FreshElements_WorkInLevel2() => CheckFreshElements("Game_Level2");
     [UnityTest] public IEnumerator FreshElements_WorkInLevel3() => CheckFreshElements("Game_Level3");
 
+    [UnityTest]
+    public IEnumerator FreshGuard_DetectsPlayerAndStartsRealCoreAlarm()
+    {
+        EditorSceneManager.OpenScene("Assets/Game/Core/Scenes/Game.unity");
+        bool reload = !EditorSettings.enterPlayModeOptionsEnabled
+            || (EditorSettings.enterPlayModeOptions & EnterPlayModeOptions.DisableDomainReload) == 0;
+        yield return new EnterPlayMode(reload);
+        var session = Object.FindAnyObjectByType<RunSession>();
+        session.StartRun();
+        var instance = Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(
+            "Assets/Game/Level/Prefabs/Guard.prefab"), new Vector3(-100, 0, 0), Quaternion.identity);
+        var guard = instance.GetComponents<MonoBehaviour>().Single(c => c.GetType().Name == "Guard");
+        var data = new SerializedObject(guard);
+        data.FindProperty("turnMode").enumValueIndex = 0;
+        data.ApplyModifiedPropertiesWithoutUndo();
+        var player = LevelServices.Resolve<IPlayerControl>(session) as MonoBehaviour;
+        var body = player.GetComponent<Rigidbody>();
+        body.useGravity = false;
+        body.linearVelocity = Vector3.zero;
+        body.position = instance.transform.position + Vector3.forward + Vector3.up * 0.5f;
+        Physics.SyncTransforms();
+        float deadline = Time.realtimeSinceStartup + 2f;
+        while (!session.HasAlarmTriggered && Time.realtimeSinceStartup < deadline) yield return null;
+        Assert.That(new SerializedObject(guard).FindProperty("coreSessionSource").objectReferenceValue, Is.SameAs(session));
+        Assert.That(session.State, Is.EqualTo(RunState.Alarm), "Fresh guard must detect the real Player without scene wiring.");
+        Assert.That(session.RemainingTime, Is.GreaterThan(0));
+    }
+
     [Test]
     public void OriginalBalance_IsStoredInLevelPrefab()
     {

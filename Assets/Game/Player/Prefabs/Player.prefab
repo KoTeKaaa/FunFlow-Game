@@ -46,12 +46,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FunFlow.Player.PlayerPathHighlighter
   preview: {fileID: 8615157215038060213}
   glowMaterial: {fileID: 2100000, guid: f3710970d1e2cab45abcb6e591d184b9, type: 2}
-  lootMask:
-    serializedVersion: 2
-    m_Bits: 2048
-  hazardMask:
-    serializedVersion: 2
-    m_Bits: 24576
   corridorRadius: 0.5
   lootColor: {r: 1, g: 0.85, b: 0.35, a: 1}
   lootIntensity: 0.9
@@ -224,7 +218,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967291
   ballRadius: 0.5
-  floorOffset: 0.02
+  floorOffset: 0.06
   visibleFraction: 0.75
   dotSpacing: 0.5
   dotRunSpeed: 1.2

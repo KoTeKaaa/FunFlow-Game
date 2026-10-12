@@ -1,12 +1,14 @@
 using UnityEngine;
 
-public class LootItem : MonoBehaviour
+public class LootItem : MonoBehaviour, IPathHighlightTarget
 {
     [Tooltip("Количество очков за подбор")]
     [SerializeField] private int value = 10;
 
     [SerializeField] private LootInventory inventory;
     private bool collected;
+    public PathHighlightKind HighlightKind => PathHighlightKind.Loot;
+    public bool CanHighlight => !collected;
 
     private void Start() => inventory = LevelServices.Resolve<LootInventory>(this, inventory);
 

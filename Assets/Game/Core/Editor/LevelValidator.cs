@@ -30,7 +30,7 @@ public static class LevelValidator
                 Error(obj, "Duplicate LootItem: pickup would award money twice. Remove the old scene component.");
         }
 
-        foreach (string layer in new[] { "Player", "Bag", "Loot", "Alarm", "Cutter", "Exit" })
+        foreach (string layer in new[] { "Player", "Bag", "Loot", "Alarm", "Cutter", "Exit", "Obstacle" })
             if (LayerMask.NameToLayer(layer) < 0) Error(roots.FirstOrDefault(), $"Missing layer {layer}.");
 
         foreach (var script in scripts)
@@ -39,15 +39,50 @@ public static class LevelValidator
             string layer = name switch
             {
                 "LootItem" => "Loot", "AlarmTrap" => "Alarm", "CutterTrap" => "Cutter",
-                "ExitTrigger" or "RunExitTrigger" => "Exit", _ => null
+                "ExitTrigger" or "RunExitTrigger" => "Exit", "Guard" => "Obstacle", _ => null
             };
             if (layer == null && name != "ValuableShowcase") continue;
+            if (name is "LootItem" or "AlarmTrap" or "CutterTrap" or "ValuableShowcase" or "Guard")
+            {
+                if (script is not IPathHighlightTarget)
+                    Error(script, "Gameplay element must implement IPathHighlightTarget for automatic path highlighting.");
+                if (!script.GetComponentsInChildren<MeshFilter>(true).Any(mesh => mesh.sharedMesh != null
+                    && mesh.GetComponent<MeshRenderer>() != null && mesh.GetComponent<MeshRenderer>().enabled))
+                    Error(script, "Highlight target requires a mesh and an enabled MeshRenderer in its own hierarchy.");
+            }
             var colliders = script.GetComponents<Collider>();
-            if (!colliders.Any(c => c.enabled && c.isTrigger))
-                Error(script, "Requires an enabled trigger collider on the same object.");
+            if (!colliders.Any(c => c.enabled && c.isTrigger == (name != "Guard")))
+                Error(script, name == "Guard" ? "Guard requires an enabled solid collider for movement and aim blocking."
+                    : "Requires an enabled trigger collider on the same object.");
             if (layer != null && script.gameObject.layer != LayerMask.NameToLayer(layer))
                 Error(script, $"Expected layer {layer}.");
             var serialized = new SerializedObject(script);
+            if (name == "Guard")
+            {
+                var head = serialized.FindProperty("head").objectReferenceValue as Transform;
+                if (head == null || !head.IsChildOf(script.transform)) Error(script, "Guard head must belong to its prefab hierarchy.");
+                if (serialized.FindProperty("coneMaterial").objectReferenceValue == null) Error(script, "Guard requires a vision-cone material.");
+                foreach (string field in new[] { "viewRange", "viewAngle", "eyeHeight", "turnSpeed" })
+                {
+                    float value = serialized.FindProperty(field).floatValue;
+                    if (!float.IsFinite(value) || value <= 0) Error(script, $"Guard {field} must be positive and finite.");
+                }
+                if (serialized.FindProperty("viewAngle").floatValue > 180) Error(script, "Guard viewAngle must not exceed 180 degrees.");
+                foreach (string field in new[] { "startDelay", "sweepPause", "rotatePause", "coneHeight" })
+                {
+                    float value = serialized.FindProperty(field).floatValue;
+                    if (!float.IsFinite(value) || value < 0) Error(script, $"Guard {field} must be non-negative and finite.");
+                }
+                int playerLayer = LayerMask.NameToLayer("Player"), obstacleLayer = LayerMask.NameToLayer("Obstacle");
+                if (playerLayer >= 0 && (serialized.FindProperty("thiefMask").intValue & (1 << playerLayer)) == 0)
+                    Error(script, "Guard thiefMask must include Player.");
+                int mask = serialized.FindProperty("obstacleMask").intValue;
+                if (obstacleLayer >= 0 && (mask & (1 << obstacleLayer)) == 0) Error(script, "Guard obstacleMask must include Obstacle.");
+                if (playerLayer >= 0 && (mask & (1 << playerLayer)) != 0) Error(script, "Guard obstacleMask must exclude Player to avoid self-occluding detection.");
+                var source = serialized.FindProperty("coreSessionSource").objectReferenceValue as MonoBehaviour;
+                if (source != null && (source is not IRunSession || source.gameObject.scene != script.gameObject.scene))
+                    Error(script, "Guard Core source must implement IRunSession in this scene, or be empty for automatic binding.");
+            }
             string amount = name == "LootItem" ? "value" : name == "ValuableShowcase" ? "rewardValue" : null;
             if (amount != null && serialized.FindProperty(amount).intValue <= 0)
                 Error(script, "Loot reward must be positive.");
@@ -93,7 +128,7 @@ public static class LevelValidator
             if (bags.Length == 0 || bags.Any(c => c.attachedRigidbody == null))
                 Error(roots.FirstOrDefault(), "Cutter requires a Bag collider attached to a Rigidbody.");
         }
-        foreach (var pair in new[] { ("Player", "Loot"), ("Player", "Alarm"), ("Player", "Exit"), ("Bag", "Cutter") })
+        foreach (var pair in new[] { ("Player", "Loot"), ("Player", "Alarm"), ("Player", "Exit"), ("Bag", "Cutter"), ("Player", "Obstacle") })
         {
             int a = LayerMask.NameToLayer(pair.Item1), b = LayerMask.NameToLayer(pair.Item2);
             if (a >= 0 && b >= 0 && Physics.GetIgnoreLayerCollision(a, b))

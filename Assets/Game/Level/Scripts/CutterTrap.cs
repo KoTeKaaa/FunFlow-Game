@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class CutterTrap : MonoBehaviour
+public class CutterTrap : MonoBehaviour, IPathHighlightTarget
 {
     [Header("Настройки ловушки")]
     [Tooltip("Доля стоимости, которая будет потеряна. В прототипе это 35% (0.35).")]
@@ -10,6 +10,8 @@ public class CutterTrap : MonoBehaviour
     private ILootInventory _lootInventory;
     [SerializeField] private MonoBehaviour lootSource;
     private bool _isUsed = false;
+    public PathHighlightKind HighlightKind => PathHighlightKind.Hazard;
+    public bool CanHighlight => !_isUsed;
 
     private void Start()
     {
