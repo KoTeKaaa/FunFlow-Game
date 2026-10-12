@@ -25,25 +25,27 @@ namespace FunFlow.Player
 
         [Header("Пунктир")]
         [Tooltip("Какая доля полного пути видна: остальное игрок угадывает сам. Стена ближе — линия кончается на ней.")]
-        [SerializeField, Range(0.2f, 1f)] private float visibleFraction = 0.6f;
-        [Tooltip("Расстояние между точками пунктира, м.")]
-        [SerializeField, Min(0.05f)] private float dotSpacing = 0.35f;
+        [SerializeField, Range(0.2f, 1f)] private float visibleFraction = 0.75f;
+        [Tooltip("Длина одного штриха вместе с промежутком, м.")]
+        [SerializeField, Min(0.05f)] private float dotSpacing = 0.5f;
         [Tooltip("Скорость «бега» точек вперёд по пути, м/с.")]
         [SerializeField, Min(0f)] private float dotRunSpeed = 1.2f;
         [Tooltip("Ширина пунктира у шарика, м.")]
-        [SerializeField, Min(0.001f)] private float startWidth = 0.26f;
+        [SerializeField, Min(0.001f)] private float startWidth = 0.45f;
         [Tooltip("Ширина пунктира в конце видимой части, м.")]
-        [SerializeField, Min(0.001f)] private float endWidth = 0.08f;
+        [SerializeField, Min(0.001f)] private float endWidth = 0.2f;
         [Tooltip("Непрозрачность в конце видимой части (у шарика — полная).")]
-        [SerializeField, Range(0f, 1f)] private float endAlpha = 0f;
+        [SerializeField, Range(0f, 1f)] private float endAlpha = 0.3f;
+
+        [Tooltip("Яркость пунктира: больше 1 — светится через Bloom.")]
+        [SerializeField, Range(1f, 4f)] private float glow = 1.8f;
 
         [Header("Цвет от силы")]
-        [Tooltip("Цвет при самом слабом запуске — бледный.")]
-        [SerializeField] private Color weakColor = new Color(1f, 0.96f, 0.82f);
-        [Tooltip("Цвет при полной силе — яркий.")]
-        [SerializeField] private Color fullColor = new Color(1f, 0.6f, 0.05f);
+        [Tooltip("Цвет пунктира и резинки по силе оттягивания: слева — самый слабый запуск, справа — полная сила.")]
+        [SerializeField] private Gradient powerColors = DefaultPowerColors();
 
         private static readonly int BaseMapStId = Shader.PropertyToID("_BaseMap_ST");
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private MaterialPropertyBlock lineProperties;
 
         /// <summary>Точка остановки по предпросмотру (центр шарика); валидна, пока предпросмотр виден.</summary>
@@ -53,6 +55,8 @@ namespace FunFlow.Player
         /// <summary>Конец видимой части пути (центр шарика); валиден, пока предпросмотр виден.</summary>
         public Vector3 VisibleEnd { get; private set; }
         public bool IsVisible => line.enabled;
+        /// <summary>Цвет текущей силы оттягивания; общий для пунктира и резинки.</summary>
+        public Color PowerColor => powerColors.Evaluate(launchInput.AimPower);
 
         private void OnDisable() => SetVisible(false);
 
@@ -93,7 +97,7 @@ namespace FunFlow.Player
         /// <summary>Только вид линии: цвет и ширина через вершины, сдвиг точек через MaterialPropertyBlock.</summary>
         private void ApplyLook(float power)
         {
-            Color color = Color.Lerp(weakColor, fullColor, power);
+            Color color = powerColors.Evaluate(power);
             line.startColor = new Color(color.r, color.g, color.b, 1f);
             line.endColor = new Color(color.r, color.g, color.b, endAlpha);
             line.widthMultiplier = 1f;
@@ -107,7 +111,23 @@ namespace FunFlow.Player
             lineProperties ??= new MaterialPropertyBlock();
             line.GetPropertyBlock(lineProperties);
             lineProperties.SetVector(BaseMapStId, new Vector4(1f, 1f, offset, 0f));
+            // Цвет вершин ограничен 0..1, поэтому яркость сверх 1 — множителем материала.
+            lineProperties.SetColor(BaseColorId, new Color(glow, glow, glow, 1f));
             line.SetPropertyBlock(lineProperties);
+        }
+
+        private static Gradient DefaultPowerColors()
+        {
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(0.35f, 1f, 0.45f), 0f),
+                    new GradientColorKey(new Color(1f, 0.85f, 0.15f), 0.5f),
+                    new GradientColorKey(new Color(1f, 0.2f, 0.1f), 1f)
+                },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+            return gradient;
         }
 
         private void SetVisible(bool visible)

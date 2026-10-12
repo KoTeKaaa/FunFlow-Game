@@ -10,21 +10,23 @@ namespace FunFlow.Player
     {
         [SerializeField] private PlayerLaunchInput launchInput;
         [SerializeField] private PlayerMotor motor;
+        [Tooltip("Источник цвета силы — тот же, что у пунктира.")]
+        [SerializeField] private PlayerPathPreview preview;
         [SerializeField] private LineRenderer band;
         [Tooltip("Длина резинки при полной силе, м.")]
         [SerializeField, Min(0.05f)] private float maxLength = 1.6f;
         [Tooltip("Длина резинки при самом слабом запуске, м.")]
         [SerializeField, Min(0f)] private float minLength = 0.25f;
         [Tooltip("Толщина резинки у шарика, м.")]
-        [SerializeField, Min(0.001f)] private float startWidth = 0.05f;
+        [SerializeField, Min(0.001f)] private float startWidth = 0.07f;
         [Tooltip("Толщина резинки на конце, м.")]
-        [SerializeField, Min(0.001f)] private float endWidth = 0.02f;
+        [SerializeField, Min(0.001f)] private float endWidth = 0.03f;
         [Tooltip("Высота резинки над полом, м.")]
         [SerializeField, Min(0f)] private float floorOffset = 0.03f;
         [Tooltip("Радиус шарика: от центра до пола, м.")]
         [SerializeField, Min(0.01f)] private float ballRadius = 0.5f;
-        [Tooltip("Цвет у шарика; к концу резинка становится прозрачной.")]
-        [SerializeField] private Color color = new Color(1f, 0.92f, 0.7f, 0.85f);
+        [Tooltip("Непрозрачность у шарика; к концу резинка становится прозрачной.")]
+        [SerializeField, Range(0f, 1f)] private float alpha = 0.9f;
 
         private void OnDisable() => SetVisible(false);
 
@@ -43,7 +45,8 @@ namespace FunFlow.Player
             band.SetPosition(1, origin + pullDirection * (ballRadius + Mathf.Lerp(minLength, maxLength, power)));
             band.startWidth = startWidth;
             band.endWidth = endWidth;
-            band.startColor = color;
+            Color color = preview.PowerColor;
+            band.startColor = new Color(color.r, color.g, color.b, alpha);
             band.endColor = new Color(color.r, color.g, color.b, 0f);
             SetVisible(true);
         }
