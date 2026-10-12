@@ -39,7 +39,7 @@ namespace FunFlow.Presentation.EditorTools
                 var entries = data.FindProperty("levels");
                 entries.arraySize = 1;
                 var entry = entries.GetArrayElementAtIndex(0);
-                entry.FindPropertyRelative("Title").stringValue = "Музей";
+                entry.FindPropertyRelative("Title").stringValue = "Маршрут 1";
                 entry.FindPropertyRelative("Description").stringValue = "Собери добычу и доберись до выхода.";
                 entry.FindPropertyRelative("ScenePath").stringValue = "Assets/Game/Core/Scenes/Game.unity";
                 entry.FindPropertyRelative("Artwork").objectReferenceValue = background;
@@ -81,12 +81,12 @@ namespace FunFlow.Presentation.EditorTools
             var settings = Panel("Settings", ui.transform, true);
             Label("Eyebrow", home.transform, "ПЛАН ОГРАБЛЕНИЯ", 20, HudStyle.Gold, new Vector2(112, 194), new Vector2(640, 40));
             Label("Title", home.transform, "Хватай добычу.\nУспей к выходу!", 72, HudStyle.Text, new Vector2(108, 246), new Vector2(720, 190), true);
-            Label("Subtitle", home.transform, "Один маршрут. Много соблазнов.", 26, HudStyle.Body, new Vector2(112, 444), new Vector2(670, 50));
+            Label("Subtitle", home.transform, "Разные маршруты. Много соблазнов.", 26, HudStyle.Body, new Vector2(112, 444), new Vector2(670, 50));
             var play = Button("Play", home.transform, "Играть  →", new Vector2(112, 548), new Vector2(430, 88), true);
             var options = Button("Settings", home.transform, "Настройки", new Vector2(112, 652), new Vector2(430, 80), false);
             var quit = Button("Quit", home.transform, "Выйти из игры", new Vector2(112, 748), new Vector2(430, 80), false);
             Label("Footer", home.transform, "МЫШЬ — ВЫБОР  •  ENTER — ПОДТВЕРДИТЬ", 18, HudStyle.Muted, new Vector2(112, 968), new Vector2(800, 32));
-            Label("LevelHeading", levels.transform, "Выбери ограбление", 54, HudStyle.Text, new Vector2(96, 116), new Vector2(1500, 80), true);
+            Label("LevelHeading", levels.transform, "Выбери уровень музея", 54, HudStyle.Text, new Vector2(96, 116), new Vector2(1500, 80), true);
             var status = Label("Status", levels.transform, "", 24, HudStyle.Body, new Vector2(98, 206), new Vector2(1500, 42));
             var scroll = Go("LevelRibbon", levels.transform);
             Place(scroll.transform, new Vector2(80, 298), new Vector2(1760, 496));

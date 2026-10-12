@@ -7,7 +7,7 @@ namespace FunFlow.Presentation
 {
     /// <summary>
     /// Дополняет карточку HudScreens последовательностью уровней: номер уровня, кнопка
-    /// «Следующий уровень» после победы и финальный итог с выходом в главное меню.
+    /// «Следующий уровень» после победы и выход в главное меню после последнего.
     /// Главная кнопка карточки по-прежнему перезапускает текущий уровень через IRunSession.
     /// </summary>
     public sealed class HudLevelFlow : MonoBehaviour
@@ -24,8 +24,6 @@ namespace FunFlow.Presentation
         [SerializeField] private Button levelButton;
         [SerializeField] private TMP_Text levelButtonLabel;
         [SerializeField] private TMP_Text tagText;
-        [SerializeField] private TMP_Text titleText;
-        [SerializeField] private TMP_Text bodyText;
         [SerializeField] private TMP_Text hintText;
         [SerializeField] private TMP_Text primaryLabel;
 
@@ -76,7 +74,7 @@ namespace FunFlow.Presentation
         {
             bool won = screens.IsResultShown && session.State == RunState.Won;
             SetActive(levelButton.gameObject, won && !requested);
-            if (!screens.IsVisible || sequence.LevelCount < 2) return;
+            if (!screens.IsVisible || sequence.LevelCount < 1) return;
 
             string level = $"Уровень {sequence.LevelNumber} из {sequence.LevelCount}";
             if (!screens.IsResultShown)
@@ -91,22 +89,13 @@ namespace FunFlow.Presentation
                 return;
             }
 
-            if (sequence.HasNextLevel)
-            {
-                SetText(tagText, $"{level} пройден".ToUpperInvariant());
-                SetText(primaryLabel, "Переиграть уровень");
-                SetText(levelButtonLabel, "Следующий уровень →");
-                SetText(hintText, "N — следующий уровень · R — переиграть");
-                return;
-            }
-
-            int total = sequence.TotalValue;
-            SetText(tagText, $"Все {sequence.LevelCount} уровня пройдены".ToUpperInvariant());
-            SetText(titleText, $"Музей обчищен!\nИтого <color={HudStyle.GoldHex}>{HudStyle.Money(total)} {HudStyle.Coins(total)}</color>");
-            SetText(bodyText, Breakdown());
-            SetText(primaryLabel, $"Переиграть уровень {sequence.LevelNumber}");
-            SetText(levelButtonLabel, "Выход в главное меню");
-            SetText(hintText, "N — главное меню · R — переиграть уровень");
+            // HudScreens keeps the result of this attempt; earlier levels are independent.
+            SetText(tagText, $"{level} пройден".ToUpperInvariant());
+            SetText(primaryLabel, "Переиграть уровень");
+            SetText(levelButtonLabel, sequence.HasNextLevel ? "Следующий уровень →" : "Выход в главное меню");
+            SetText(hintText, sequence.HasNextLevel
+                ? "N — следующий уровень · R — переиграть"
+                : "N — главное меню · R — переиграть уровень");
         }
 
         /// <summary>То же, что нажатие кнопки уровня. Срабатывает один раз.</summary>
@@ -121,18 +110,6 @@ namespace FunFlow.Presentation
             screens.Hide(); // R/Enter больше не отправят Restart поверх загрузки уровня
             if (sequence.HasNextLevel) sequence.LoadNextLevel();
             else sequence.ReturnToMainMenu();
-        }
-
-        private string Breakdown()
-        {
-            var text = new System.Text.StringBuilder();
-            for (int n = 1; n <= sequence.LevelCount; n++)
-            {
-                int value = sequence.GetLevelValue(n);
-                if (n > 1) text.Append('\n');
-                text.Append($"Уровень {n} — {HudStyle.Money(value)} {HudStyle.Coins(value)}");
-            }
-            return text.ToString();
         }
 
         private static void SetActive(GameObject target, bool active)
