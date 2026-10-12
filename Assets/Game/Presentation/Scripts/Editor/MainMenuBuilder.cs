@@ -187,7 +187,9 @@ namespace FunFlow.Presentation.EditorTools
         private static TextMeshProUGUI Label(string name, Transform parent, string value, float size, Color color, Vector2 position, Vector2 bounds, bool bold = false)
         {
             var go = Go(name, parent); Place(go.transform, position, bounds);
-            var text = go.AddComponent<TextMeshProUGUI>(); text.font = TMP_Settings.defaultFontAsset; text.spriteAsset = icons;
+            var text = go.AddComponent<TextMeshProUGUI>();
+            text.font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Game/Presentation/UI/RussianUi SDF.asset");
+            text.spriteAsset = icons;
             text.text = value; text.fontSize = size; text.color = color; text.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
             text.raycastTarget = false; text.textWrappingMode = TextWrappingModes.Normal;
             return text;

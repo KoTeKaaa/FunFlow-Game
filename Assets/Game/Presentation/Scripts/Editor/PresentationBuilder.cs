@@ -351,7 +351,7 @@ namespace FunFlow.Presentation.EditorTools
         {
             GameObject go = Ui(name, parent);
             var t = go.AddComponent<TextMeshProUGUI>();
-            t.font = TMP_Settings.defaultFontAsset;
+            t.font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Game/Presentation/UI/RussianUi SDF.asset");
             t.text = text;
             t.fontSize = size;
             t.color = color;
