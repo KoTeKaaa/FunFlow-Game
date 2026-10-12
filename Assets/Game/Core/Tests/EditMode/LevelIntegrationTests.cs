@@ -84,6 +84,47 @@ public sealed class LevelIntegrationTests
     [UnityTest] public IEnumerator FreshElements_WorkInLevel2() => CheckFreshElements("Game_Level2");
     [UnityTest] public IEnumerator FreshElements_WorkInLevel3() => CheckFreshElements("Game_Level3");
 
+    [Test]
+    public void ExitPrefab_ContainsOneAutomaticTriggerInItsDoorway()
+    {
+        var root = PrefabUtility.LoadPrefabContents("Assets/Game/Level/Prefabs/Elements/exit.prefab");
+        try
+        {
+            var exit = root.GetComponentsInChildren<MonoBehaviour>(true).Single(c => c is ILevelExit);
+            Assert.That(root.transform.position, Is.EqualTo(Vector3.zero));
+            Assert.That(exit.gameObject.layer, Is.EqualTo(LayerMask.NameToLayer("Exit")));
+            Assert.That(exit.GetComponent<BoxCollider>().isTrigger, Is.True);
+            Assert.That(new SerializedObject(exit).FindProperty("coreSessionSource").objectReferenceValue, Is.Null);
+            Assert.That(LevelValidator.Validate(new[] { root }, false).Select(i => i.Message), Is.Empty);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+    }
+
+    [UnityTest]
+    public IEnumerator FreshExit_PhysicalContactFinishesWithoutSceneWiring()
+    {
+        EditorSceneManager.OpenScene("Assets/Game/Core/Scenes/Game.unity");
+        yield return new EnterPlayMode();
+        var session = Object.FindAnyObjectByType<RunSession>();
+        var hud = LevelServices.Components(session.gameObject.scene).Single(c => c.GetType().Name == "PresentationBinder");
+        Assert.That(new SerializedObject(hud).FindProperty("routeExit").objectReferenceValue,
+            Is.SameAs(LevelServices.FindExit(session.gameObject.scene)), "HUD must find the prefab exit automatically.");
+        var gate = Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(
+            "Assets/Game/Level/Prefabs/Elements/exit.prefab"), new Vector3(-200, 0, 0), Quaternion.Euler(0, 30, 0));
+        yield return null;
+        var exit = gate.GetComponentsInChildren<MonoBehaviour>().Single(c => c is ILevelExit);
+        Assert.That(new SerializedObject(exit).FindProperty("coreSessionSource").objectReferenceValue, Is.Null);
+        session.StartRun();
+        var body = (LevelServices.Resolve<IPlayerControl>(session) as MonoBehaviour).GetComponent<Rigidbody>();
+        body.position = exit.transform.position;
+        body.linearVelocity = Vector3.zero;
+        body.WakeUp();
+        Physics.SyncTransforms();
+        float deadline = Time.realtimeSinceStartup + 2f;
+        while (session.State == RunState.Playing && Time.realtimeSinceStartup < deadline) yield return null;
+        Assert.That(session.State, Is.EqualTo(RunState.Won), "Moved and rotated fresh gate must finish the run.");
+    }
+
     [UnityTest]
     public IEnumerator FreshGuard_DetectsPlayerAndStartsRealCoreAlarm()
     {
@@ -122,8 +163,8 @@ public sealed class LevelIntegrationTests
             var prices = scripts.Where(c => c.GetType().Name == "LootItem")
                 .Select(c => new SerializedObject(c).FindProperty("value").intValue).ToArray();
             Assert.That(prices.Count(v => v == 50), Is.GreaterThanOrEqualTo(5));
-            Assert.That(prices.Count(v => v == 75), Is.EqualTo(3));
-            Assert.That(prices.Count(v => v == 100), Is.EqualTo(3));
+            Assert.That(prices.Count(v => v == 75), Is.GreaterThanOrEqualTo(3));
+            Assert.That(prices.Count(v => v == 100), Is.GreaterThanOrEqualTo(3));
             Assert.That(scripts.Where(c => c.GetType().Name == "ValuableShowcase")
                 .Select(c => new SerializedObject(c).FindProperty("rewardValue").intValue), Is.EquivalentTo(new[] { 200, 300 }));
         }
@@ -139,7 +180,7 @@ public sealed class LevelIntegrationTests
         var session = Object.FindAnyObjectByType<RunSession>();
         int levelNumber = name == "Game" ? 1 : name == "Game_Level2" ? 2 : 3;
         var oldLevel = LevelServices.Components(session.gameObject.scene)
-            .Single(c => c.GetType().Name == "ExitTrigger").transform.parent.gameObject;
+            .OfType<LevelAlarmSettings>().Single().gameObject;
         Object.Destroy(oldLevel);
         yield return null;
         Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(

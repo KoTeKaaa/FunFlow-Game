@@ -96,6 +96,8 @@ namespace FunFlow.Presentation
         private void Start()
         {
             started = true;
+            if (routeExit == null)
+                routeExit = LevelServices.FindExit(gameObject.scene);
             if (presentation == null)
             {
                 Debug.LogError("PresentationBinder: не назначен PresentationController.", this);
