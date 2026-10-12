@@ -5,20 +5,33 @@ namespace FunFlow.Player
     /// <summary>
     /// «Ощущение» шарика — только визуал, физику и предпросмотр не трогает:
     /// сжатие при оттягивании, растяжение при запуске, сплющивание при ударе (масштаб Squash)
-    /// и качение по скорости (поворот BallMesh). Иерархия: Player → Squash → BallMesh.
-    /// Squash поворачивается к оси деформации, BallMesh только катится — сплющивание не крутится вместе с шариком.
+    /// и поворот «мордой» по рысканью (Facing). Иерархия: Player → Facing → Squash → BallMesh.
+    /// Facing поворачивается только вокруг Y: при прицеливании — в сторону запуска, в движении — по скорости.
+    /// Squash поворачивается к оси деформации, BallMesh всегда держит мировой поворот Facing.
     /// </summary>
     public class PlayerBallFeel : MonoBehaviour
     {
         [SerializeField] private PlayerMotor motor;
         [SerializeField] private PlayerLaunchInput launchInput;
         [SerializeField] private Rigidbody body;
+        [Tooltip("Поворот «мордой» только вокруг Y; без коллайдеров.")]
+        [SerializeField] private Transform facing;
         [Tooltip("Масштаб и поворот к оси деформации; без коллайдеров.")]
         [SerializeField] private Transform squash;
-        [Tooltip("Меш шарика внутри Squash; только вращение качения.")]
+        [Tooltip("Меш шарика внутри Squash; держит мировой поворот Facing (со смещением модели).")]
         [SerializeField] private Transform ballMesh;
-        [Tooltip("Радиус шарика, м: для качения и чтобы низ деформированного шарика оставался на полу.")]
+        [Tooltip("Радиус шарика, м: чтобы низ деформированного шарика оставался на полу.")]
         [SerializeField, Min(0.01f)] private float ballRadius = 0.5f;
+
+        [Header("Поворот мордой")]
+        [Tooltip("Время, за которое морда в основном догоняет нужное направление, с. Меньше — резче.")]
+        [SerializeField, Min(0.01f)] private float turnSmoothTime = 0.1f;
+        [Tooltip("Наибольшая скорость поворота, °/с: разворот после удара о стену не быстрее этого.")]
+        [SerializeField, Min(1f)] private float maxTurnSpeed = 900f;
+        [Tooltip("Скорость по полу меньше этой не меняет направление морды, м/с: на остановке шарик не дёргается.")]
+        [SerializeField, Min(0f)] private float minTurnSpeed = 0.3f;
+        [Tooltip("Поворот модели вокруг Y относительно Facing, градусы: выравнивает морду, если в модели она не вдоль +Z.")]
+        [SerializeField, Range(-180f, 180f)] private float modelYawOffset;
 
         [Header("Оттягивание")]
         [Tooltip("Сжатие вдоль натяжения при полной силе: 0.2 — на 20%.")]
@@ -52,7 +65,11 @@ namespace FunFlow.Player
         private float pulseStart;
         private float pulsePeak;
 
-        private Quaternion roll = Quaternion.identity;
+        // Рысканье Facing, градусы (0 — морда вдоль +Z, 90 — вдоль +X, по ходу коридора).
+        private const float StartYaw = 90f;
+        private float yaw = StartYaw;
+        private float targetYaw = StartYaw;
+        private float yawVelocity;
 
         private void OnEnable()
         {
@@ -72,7 +89,7 @@ namespace FunFlow.Player
         {
             float dt = Time.deltaTime;
             UpdateDeformation(dt);
-            UpdateRoll(dt);
+            UpdateFacing(dt);
             ApplySquash();
         }
 
@@ -131,22 +148,25 @@ namespace FunFlow.Player
             amount = Mathf.Lerp(amount, target, 1f - Mathf.Exp(-dt / aimSmoothTime));
         }
 
-        /// <summary>Качение без проскальзывания: угол = путь / радиус, ось — поперёк скорости.</summary>
-        private void UpdateRoll(float dt)
+        /// <summary>
+        /// Цель — направление будущего запуска при прицеливании или скорость в движении;
+        /// иначе (покой, малая скорость) морда держит последнее направление.
+        /// </summary>
+        private void UpdateFacing(float dt)
         {
-            if (motor.IsMoving)
+            if (launchInput.HasLaunchableAim)
+            {
+                targetYaw = YawOf(launchInput.AimDirection);
+            }
+            else if (motor.IsMoving)
             {
                 Vector3 velocity = body.linearVelocity;
                 velocity.y = 0f;
-                float speed = velocity.magnitude;
-                if (speed > 1e-4f)
-                {
-                    Vector3 rollAxis = Vector3.Cross(Vector3.up, velocity / speed);
-                    roll = Quaternion.AngleAxis(speed * dt / ballRadius * Mathf.Rad2Deg, rollAxis) * roll;
-                }
+                if (velocity.sqrMagnitude > minTurnSpeed * minTurnSpeed) targetYaw = YawOf(velocity);
             }
-            // Мировой поворот: поворот Squash к оси деформации не должен крутить шарик.
-            ballMesh.rotation = roll;
+
+            if (dt > 0f) yaw = Mathf.SmoothDampAngle(yaw, targetYaw, ref yawVelocity, turnSmoothTime, maxTurnSpeed, dt);
+            facing.rotation = Quaternion.Euler(0f, yaw, 0f);
         }
 
         private void ApplySquash()
@@ -157,6 +177,8 @@ namespace FunFlow.Player
             squash.localScale = new Vector3(across, across, along);
             // Центр сдвигается так, чтобы низ шарика оставался на полу.
             squash.localPosition = Vector3.up * (ballRadius * (across - 1f));
+            // Мировой поворот: поворот Squash к оси деформации не должен крутить морду.
+            ballMesh.rotation = facing.rotation * Quaternion.Euler(0f, modelYawOffset, 0f);
         }
 
         private void ResetVisual()
@@ -164,15 +186,20 @@ namespace FunFlow.Player
             axis = Vector3.right;
             amount = 0f;
             pulseActive = false;
-            roll = Quaternion.identity;
+            yaw = targetYaw = StartYaw;
+            yawVelocity = 0f;
+            if (facing != null) facing.rotation = Quaternion.Euler(0f, StartYaw, 0f);
             if (squash != null)
             {
                 squash.localPosition = Vector3.zero;
+                // Ось деформации +X совпадает с мордой при старте — поворот Squash относительно Facing нулевой.
                 squash.localRotation = Quaternion.identity;
                 squash.localScale = Vector3.one;
             }
-            if (ballMesh != null) ballMesh.localRotation = Quaternion.identity;
+            if (ballMesh != null) ballMesh.localRotation = Quaternion.Euler(0f, modelYawOffset, 0f);
         }
+
+        private static float YawOf(Vector3 direction) => Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
 
         private static float Smooth(float t) => t * t * (3f - 2f * t);
     }
