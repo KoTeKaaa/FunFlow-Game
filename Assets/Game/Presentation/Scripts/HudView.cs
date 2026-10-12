@@ -22,9 +22,12 @@ namespace FunFlow.Presentation
         [Header("Сигнализация")]
         [SerializeField] private TMP_Text alarmValue;
         [SerializeField] private CanvasGroup alarmBorder;
+        [SerializeField] private UnityEngine.UI.Image alarmIcon;
+        [SerializeField] private Sprite alarmIdleSprite, alarmAlertSprite;
 
         [Header("Статус")]
         [SerializeField] private TMP_Text statusText;
+        [SerializeField] private UnityEngine.UI.Image statusIcon;
 
         [Header("Анимация")]
         [SerializeField, Min(0.1f)] private float counterSpeed = 10f;
@@ -106,6 +109,7 @@ namespace FunFlow.Presentation
         public void SetAlarmIdle()
         {
             alarmActive = false;
+            if (alarmIcon != null) alarmIcon.sprite = alarmIdleSprite;
             lastAlarmSecond = -1;
             if (alarmValue != null)
             {
@@ -118,6 +122,7 @@ namespace FunFlow.Presentation
         public void SetAlarmTime(float secondsLeft)
         {
             alarmActive = true;
+            if (alarmIcon != null) alarmIcon.sprite = alarmAlertSprite;
             alarmSeconds = Mathf.Max(0f, secondsLeft);
             int sec = Mathf.CeilToInt(alarmSeconds);
             if (sec == lastAlarmSecond || alarmValue == null) return;
@@ -165,6 +170,8 @@ namespace FunFlow.Presentation
                 statusTemporary = false;
                 if (statusText != null) statusText.text = defaultStatus;
             }
+            if (statusIcon != null)
+                statusIcon.gameObject.SetActive(!statusTemporary && !string.IsNullOrEmpty(defaultStatus));
 
             if (alarmBorder != null)
             {

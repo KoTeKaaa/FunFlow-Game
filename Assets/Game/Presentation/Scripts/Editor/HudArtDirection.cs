@@ -56,8 +56,150 @@ namespace FunFlow.Presentation.EditorTools
             foreach (var image in root.transform.Find("AlarmBorder").GetComponentsInChildren<UnityEngine.UI.Image>())
                 image.color = new Color(HudStyle.Red.r, HudStyle.Red.g, HudStyle.Red.b, 0.22f);
             var controller = new SerializedObject(root.GetComponent<PresentationController>());
-            controller.FindProperty("playingHint").stringValue = "<sprite=3>  Зажми • оттяни • отпусти";
+            controller.FindProperty("playingHint").stringValue = "Зажми • оттяни • отпусти";
             controller.ApplyModifiedPropertiesWithoutUndo();
+            ApplyStatusIcons(root);
+            ApplyTutorialIcons(root);
+            ApplyStatusMouse(root);
+            ApplyResultMenuButton(root);
+        }
+
+        public static void ApplyStatusIcons(GameObject root)
+        {
+            var bar = root.transform.Find("TopBar");
+            foreach (string name in new[] { "Loot", "Weight", "Route", "Alarm" })
+            {
+                var cell = bar.Find(name);
+                var rect = (RectTransform)cell;
+                rect.sizeDelta = new Vector2(name is "Loot" or "Weight" ? 410 : name == "Route" ? 380 : 350, rect.sizeDelta.y);
+                var caption = cell.Find("Label").GetComponent<TMP_Text>();
+                caption.text = System.Text.RegularExpressions.Regex.Replace(caption.text, "<sprite[^>]*>", "").Trim();
+                float size = name == "Weight" ? 42 : name == "Route" ? 72 : 84;
+                float inset = name == "Weight" ? 76 : 112;
+                foreach (string text in new[] { "Label", "Value" })
+                {
+                    var band = (RectTransform)cell.Find(text);
+                    var min = band.offsetMin; min.x = inset;
+                    var max = band.offsetMax; max.x = -20;
+                    if (name == "Loot" && text == "Value") band.pivot = new Vector2(0, 0.5f);
+                    band.offsetMin = min; band.offsetMax = max;
+                }
+                var icon = cell.Find("StatusIcon");
+                if (icon == null)
+                {
+                    var go = new GameObject("StatusIcon", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+                    go.layer = cell.gameObject.layer;
+                    go.transform.SetParent(cell, false); icon = go.transform;
+                }
+                var image = icon.GetComponent<UnityEngine.UI.Image>();
+                string asset = name == "Route" ? "Exit" : name == "Alarm" ? "AlarmIdle" : name;
+                image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Game/Presentation/UI/HudIcons/{asset}.png");
+                image.color = Color.white; image.preserveAspect = true; image.raycastTarget = false;
+                var position = (RectTransform)icon;
+                position.anchorMin = position.anchorMax = position.pivot = new Vector2(0, 0.5f);
+                position.sizeDelta = Vector2.one * size;
+                position.anchoredPosition = new Vector2(16, name == "Weight" ? 8 : name == "Route" ? 10 : 0);
+            }
+            var data = new SerializedObject(root.GetComponent<HudView>());
+            data.FindProperty("alarmIcon").objectReferenceValue = bar.Find("Alarm/StatusIcon").GetComponent<UnityEngine.UI.Image>();
+            data.FindProperty("alarmIdleSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Game/Presentation/UI/HudIcons/AlarmIdle.png");
+            data.FindProperty("alarmAlertSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Game/Presentation/UI/HudIcons/Alarm.png");
+            data.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        public static void ApplyTutorialIcons(GameObject root)
+        {
+            var card = root.transform.Find("Overlay/Card");
+            var body = card.Find("Body").GetComponent<TextMeshProUGUI>();
+            var tutorial = card.Find("Tutorial");
+            if (tutorial == null)
+            {
+                var go = new GameObject("Tutorial", typeof(RectTransform), typeof(UnityEngine.UI.VerticalLayoutGroup));
+                go.layer = body.gameObject.layer;
+                go.transform.SetParent(card, false);
+                tutorial = go.transform;
+            }
+            tutorial.SetSiblingIndex(body.transform.GetSiblingIndex() + 1);
+            var group = tutorial.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            group.spacing = 10; group.childControlWidth = group.childControlHeight = true;
+            group.childForceExpandWidth = true; group.childForceExpandHeight = false;
+            string[] assets = { "Mouse", "Loot", "Alarm", "Exit" };
+            string[] captions = {
+                "<b>Зажми • оттяни • отпусти.</b> Дальше оттянул — сильнее запуск.",
+                "<b>Собирай добычу.</b> Тяжёлый мешок сокращает дальность.",
+                "<b>Берегись ловушек.</b> Лезвия режут мешок, красные плиты включают тревогу.",
+                "<b>Выход справа.</b> Двигайся только вперёд." };
+            for (int i = 0; i < assets.Length; i++)
+            {
+                var row = tutorial.Find(assets[i]);
+                if (row != null) continue;
+                var go = new GameObject(assets[i], typeof(RectTransform), typeof(UnityEngine.UI.HorizontalLayoutGroup));
+                go.layer = body.gameObject.layer; go.transform.SetParent(tutorial, false); row = go.transform;
+                var layout = go.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+                layout.spacing = 14; layout.childAlignment = TextAnchor.UpperLeft;
+                layout.childControlWidth = layout.childControlHeight = true;
+                layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+                var icon = new GameObject("Icon", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
+                icon.layer = go.layer; icon.transform.SetParent(row, false);
+                var image = icon.GetComponent<UnityEngine.UI.Image>();
+                image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(UiPath + "HudIcons/" + assets[i] + ".png");
+                image.preserveAspect = true; image.raycastTarget = false;
+                var size = icon.GetComponent<UnityEngine.UI.LayoutElement>();
+                size.minWidth = size.preferredWidth = 44; size.minHeight = size.preferredHeight = 44;
+                var label = Object.Instantiate(body, row);
+                label.name = "Text"; label.text = captions[i]; label.raycastTarget = false;
+                var textLayout = label.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (textLayout == null) textLayout = label.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                textLayout.flexibleWidth = 1;
+            }
+            var data = new SerializedObject(root.GetComponent<HudScreens>());
+            data.FindProperty("tutorial").objectReferenceValue = tutorial.gameObject;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            tutorial.gameObject.SetActive(false);
+        }
+
+        public static void ApplyStatusMouse(GameObject root)
+        {
+            var status = root.transform.Find("Status");
+            var icon = status.Find("MouseIcon");
+            if (icon == null)
+            {
+                var go = new GameObject("MouseIcon", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
+                go.layer = status.gameObject.layer; go.transform.SetParent(status, false); icon = go.transform;
+            }
+            icon.SetAsFirstSibling();
+            var image = icon.GetComponent<UnityEngine.UI.Image>();
+            image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(UiPath + "HudIcons/Mouse.png");
+            image.preserveAspect = true; image.raycastTarget = false;
+            var size = icon.GetComponent<UnityEngine.UI.LayoutElement>();
+            size.minWidth = size.preferredWidth = 32; size.minHeight = size.preferredHeight = 32;
+            ((RectTransform)icon).sizeDelta = Vector2.one * 32;
+            status.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>().spacing = 14;
+            var data = new SerializedObject(root.GetComponent<HudView>());
+            data.FindProperty("statusIcon").objectReferenceValue = image;
+            data.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        public static void ApplyResultMenuButton(GameObject root)
+        {
+            var flow = root.GetComponent<HudLevelFlow>();
+            if (flow == null) return;
+            var card = root.transform.Find("Overlay/Card");
+            var button = card.Find("MenuButton");
+            if (button == null)
+            {
+                button = Object.Instantiate(card.Find("PrimaryButton"), card);
+                button.name = "MenuButton";
+            }
+            button.SetSiblingIndex(card.Find("PrimaryButton").GetSiblingIndex() + 1);
+            var label = button.Find("Label").GetComponent<TMP_Text>();
+            label.color = HudStyle.Text;
+            ButtonLabels.Set(label, "Выход в главное меню");
+            button.GetComponent<UnityEngine.UI.Image>().color = HudStyle.Panel;
+            var data = new SerializedObject(flow);
+            data.FindProperty("menuButton").objectReferenceValue = button.GetComponent<UnityEngine.UI.Button>();
+            data.ApplyModifiedPropertiesWithoutUndo();
+            button.gameObject.SetActive(false);
         }
 
         private static void Cell(Transform cell, Sprite plate, Vector2 anchor, Vector2 position, Vector2 size, string label, Color accent)

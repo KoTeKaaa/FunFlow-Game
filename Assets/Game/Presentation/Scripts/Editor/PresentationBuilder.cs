@@ -228,7 +228,7 @@ namespace FunFlow.Presentation.EditorTools
             var buttonLayout = buttonGo.AddComponent<UnityEngine.UI.LayoutElement>();
             buttonLayout.minWidth = buttonLayout.preferredWidth = 360;
             buttonLayout.minHeight = buttonLayout.preferredHeight = 62;
-            TextMeshProUGUI buttonLabel = Txt(buttonGo.transform, "Label", "Начать ограбление →", 22, HudStyle.Dark,
+            TextMeshProUGUI buttonLabel = Txt(buttonGo.transform, "Label", "Начать ограбление", 22, HudStyle.Dark,
                 FontStyles.Bold, TextAlignmentOptions.Center);
             Stretch(buttonLabel.gameObject);
 
@@ -359,6 +359,7 @@ namespace FunFlow.Presentation.EditorTools
             t.alignment = alignment;
             t.textWrappingMode = TextWrappingModes.NoWrap;
             t.raycastTarget = false; // текст не должен перехватывать клики по игре
+            ButtonLabels.Set(t, text);
             return t;
         }
 
