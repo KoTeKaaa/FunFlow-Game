@@ -1,0 +1,4 @@
+{
+    "name": "Game.Level.Guard",
+    "references": ["Game.Core"]
+}

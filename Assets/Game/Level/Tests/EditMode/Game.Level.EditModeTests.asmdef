@@ -1,0 +1,10 @@
+{
+    "name": "Game.Level.EditModeTests",
+    "references": ["Game.Level.Guard"],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ]
+}
