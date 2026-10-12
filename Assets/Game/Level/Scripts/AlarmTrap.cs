@@ -20,7 +20,7 @@ public class AlarmTrap : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (_isUsed || runSession == null) return; 
+        if (_isUsed || runSession == null) return;
 
         // Сигнализация реагирует ТОЛЬКО на вора (Слой Player)
         if (other.gameObject.layer == LayerMask.NameToLayer("Player"))

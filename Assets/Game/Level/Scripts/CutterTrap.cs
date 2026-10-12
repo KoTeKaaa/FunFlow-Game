@@ -24,12 +24,12 @@ public class CutterTrap : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (_isUsed || _lootInventory == null) return; 
+        if (_isUsed || _lootInventory == null) return;
 
         // Порез вызывается контактом мешка, а не тела вора.
         if (other.gameObject.layer == LayerMask.NameToLayer("Bag"))
         {
-            _isUsed = true; 
+            _isUsed = true;
             Debug.Log($"[CutterTrap] Мешок разрезан! Потеря: {lossFraction * 100}%");
             _lootInventory.RemoveFraction(lossFraction);
         }

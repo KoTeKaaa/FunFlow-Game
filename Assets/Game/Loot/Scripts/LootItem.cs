@@ -4,7 +4,7 @@ public class LootItem : MonoBehaviour
 {
     [Tooltip("Количество очков за подбор")]
     [SerializeField] private int value = 10;
-    
+
     [SerializeField] private LootInventory inventory;
     private bool collected;
 
@@ -27,8 +27,8 @@ public class LootItem : MonoBehaviour
 
         collected = true;
         inventory.AddValue(value);
-        
+
         // Скрываем монету (при перезапуске уровня родительский класс может просто сделать SetActive(true))
-        gameObject.SetActive(false); 
+        gameObject.SetActive(false);
     }
 }
